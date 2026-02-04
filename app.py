@@ -605,8 +605,8 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
 
     # ✅ 발표용 컬러바: 숫자보다 “의미”를 먼저 보이게
     cb = dict(
-        thickness=18,
-        len=0.70,
+        thickness=16,
+        len=0.55,
         x=colorbar_x,
         y=0.5,
         tickfont=dict(size=10, color="#4B5563"),
@@ -694,7 +694,131 @@ def render_kde_section():
     xmin, xmax, ymin, ymax = extent
 
     # -----------------------------------------------------
-    # (A) 비교: "각 연도 vs 2025(고정)"
+    # (A) 변화: 2019→2025 흐름(Play)
+    # -----------------------------------------------------
+    st.divider()
+    st.subheader("권역이 만들어지는 7년의 흐름")
+
+    # ✅ caption 대신 검은색 텍스트로
+    st.markdown(
+        "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
+        "▶︎ 버튼을 누르면, 자본이 어디로 모여 ‘굳어지는지’ 시간의 흐름에 따라 볼 수 있습니다."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ---- state init
+    if "kde_playing" not in st.session_state:
+        st.session_state.kde_playing = False
+    if "kde_year_cur" not in st.session_state:
+        st.session_state.kde_year_cur = 2019
+    if "kde_speed" not in st.session_state:
+        st.session_state.kde_speed = 0.5
+
+
+    ctrl1, ctrl2, ctrl3 = st.columns([1.0, 2.2, 2.2], vertical_alignment="center")
+
+    with ctrl1:
+        c1a, c1b = st.columns(2)
+        with c1a:
+            if st.button("▶", use_container_width=True, key="kde_btn_play"):
+                st.session_state.kde_playing = True
+        with c1b:
+            if st.button("■", use_container_width=True, key="kde_btn_pause"):
+                st.session_state.kde_playing = False
+
+    with ctrl2:
+        year_slider = st.slider(
+            "연도",
+            min_value=2019,
+            max_value=2025,
+            step=1,
+            value=int(st.session_state.kde_year_cur),
+            disabled=bool(st.session_state.kde_playing),
+            key="kde_year_slider_streamlit",
+        )
+        if not st.session_state.kde_playing:
+            st.session_state.kde_year_cur = int(year_slider)
+
+    with ctrl3:
+        SPEED_OPTIONS = [0.05, 0.5, 1.0, 2.0]
+
+        # ✅ 세션에 이상한 값(예: 0.25, 2.5)이 들어있으면 가장 가까운 옵션으로 스냅
+        cur = float(st.session_state.get("kde_speed", 0.5))
+        nearest = min(SPEED_OPTIONS, key=lambda v: abs(v - cur))
+
+        speed_sec = st.select_slider(
+            "재생 속도(초)",
+            options=SPEED_OPTIONS,
+            value=nearest,
+            key="kde_speed_streamlit",
+        )
+
+        st.session_state.kde_speed = float(speed_sec)
+  
+
+    st.markdown("<div style='height: 0.25rem;'></div>", unsafe_allow_html=True)
+
+
+    # ✅ 연도 상태 문장 (차트 위)
+    cur_year = int(st.session_state.kde_year_cur)
+    phase_text = _phase_label_for_year(cur_year)
+    if phase_text:
+        st.markdown(
+            f"<div style='margin-top:0.25rem; margin-bottom:0.5rem; color:#111827;'>"
+            f"<b>{cur_year}년</b> · <span style='color:#6B7280'>{phase_text}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
+    chart_slot = st.empty()
+
+    def make_single_year_fig(year: int):
+        Zy = Z_by_year.get(int(year))
+        fig = go.Figure()
+
+        hm = heatmap_trace(Zy, extent, vmax_fixed, KDE_COLORSCALE, show_scale=True, colorbar_x=1.03)
+        if hm is not None:
+            fig.add_trace(hm)
+        else:
+            fig.add_annotation(text=f"{int(year)}년<br>데이터 없음", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False)
+
+        fig.add_trace(make_boundary_traces(b3857))
+        fig.add_trace(make_label_trace(b3857, year=int(year)))
+
+        fig.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False)
+        fig.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
+
+        fig.update_layout(
+            height=420,
+            margin=dict(l=6, r=6, t=8, b=6),
+        )
+        return fig
+
+    chart_slot.plotly_chart(
+        make_single_year_fig(cur_year),
+        width="stretch",
+        config={
+            "scrollZoom": True,
+            "displayModeBar": "hover",
+        },
+    )
+
+    # ---- play loop
+    if st.session_state.kde_playing:
+        time.sleep(float(st.session_state.kde_speed))
+
+        if cur_year < 2025:
+            st.session_state.kde_year_cur = cur_year + 1
+        else:
+            st.session_state.kde_playing = False
+
+        st.rerun()
+
+
+
+    # -----------------------------------------------------
+    # (B) 비교: "각 연도 vs 2025(고정)"
     # -----------------------------------------------------
     st.divider()
     st.subheader("돈의 무게중심은 어디로 이동했나")
@@ -775,120 +899,6 @@ def render_kde_section():
             "displayModeBar": "hover",
         },
     )
-
-    # -----------------------------------------------------
-    # (B) 변화: 2019→2025 흐름(Play)
-    # -----------------------------------------------------
-    st.divider()
-    st.subheader("권역이 만들어지는 7년의 흐름")
-
-    # ✅ caption 대신 검은색 텍스트로
-    st.markdown(
-        "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
-        "▶︎ Play를 누르면, 자본이 어디로 모여 ‘굳어지는지’를 한 번에 볼 수 있습니다."
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-    # ---- state init
-    if "kde_playing" not in st.session_state:
-        st.session_state.kde_playing = False
-    if "kde_year_cur" not in st.session_state:
-        st.session_state.kde_year_cur = 2019
-    if "kde_speed" not in st.session_state:
-        st.session_state.kde_speed = 0.25
-
-    ctrl1, ctrl2, ctrl3 = st.columns([1.0, 2.2, 2.2], vertical_alignment="center")
-
-    with ctrl1:
-        c1a, c1b = st.columns(2)
-        with c1a:
-            if st.button("▶", use_container_width=True, key="kde_btn_play"):
-                st.session_state.kde_playing = True
-        with c1b:
-            if st.button("■", use_container_width=True, key="kde_btn_pause"):
-                st.session_state.kde_playing = False
-
-    with ctrl2:
-        year_slider = st.slider(
-            "연도",
-            min_value=2019,
-            max_value=2025,
-            step=1,
-            value=int(st.session_state.kde_year_cur),
-            disabled=bool(st.session_state.kde_playing),
-            key="kde_year_slider_streamlit",
-        )
-        if not st.session_state.kde_playing:
-            st.session_state.kde_year_cur = int(year_slider)
-
-    with ctrl3:
-        speed_sec = st.slider(
-            "재생 속도(초)",
-            min_value=0.5,
-            max_value=2.5,
-            step=1.0,
-            value=float(st.session_state.kde_speed),
-            key="kde_speed_streamlit",
-        )
-        # 혹시 기존 세션값(예: 0.25)이 들어있으면 3단 중 가장 가까운 값으로 스냅
-        st.session_state.kde_speed = float(speed_sec)   
-
-
-    # ✅ 연도 상태 문장 (차트 위)
-    cur_year = int(st.session_state.kde_year_cur)
-    phase_text = _phase_label_for_year(cur_year)
-    if phase_text:
-        st.markdown(
-            f"<div style='margin-top:0.25rem; margin-bottom:0.5rem; color:#111827;'>"
-            f"<b>{cur_year}년</b> · <span style='color:#6B7280'>{phase_text}</span>"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
-
-    chart_slot = st.empty()
-
-    def make_single_year_fig(year: int):
-        Zy = Z_by_year.get(int(year))
-        fig = go.Figure()
-
-        hm = heatmap_trace(Zy, extent, vmax_fixed, KDE_COLORSCALE, show_scale=True, colorbar_x=1.03)
-        if hm is not None:
-            fig.add_trace(hm)
-        else:
-            fig.add_annotation(text=f"{int(year)}년<br>데이터 없음", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False)
-
-        fig.add_trace(make_boundary_traces(b3857))
-        fig.add_trace(make_label_trace(b3857, year=int(year)))
-
-        fig.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False)
-        fig.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
-
-        fig.update_layout(
-            height=560,
-            margin=dict(l=10, r=10, t=25, b=10),
-        )
-        return fig
-
-    chart_slot.plotly_chart(
-        make_single_year_fig(cur_year),
-        width="stretch",
-        config={
-            "scrollZoom": True,
-            "displayModeBar": "hover",
-        },
-    )
-
-    # ---- play loop
-    if st.session_state.kde_playing:
-        time.sleep(float(st.session_state.kde_speed))
-
-        if cur_year < 2025:
-            st.session_state.kde_year_cur = cur_year + 1
-        else:
-            st.session_state.kde_playing = False
-
-        st.rerun()
 
 
 
