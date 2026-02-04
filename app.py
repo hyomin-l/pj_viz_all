@@ -60,10 +60,31 @@ st.markdown(
         font-size: 0.85rem;
         color: #6B7280; /* gray-500 */
       }
+
+      /* ======================================================
+         ✅ KDE 비교 라디오 전용 스타일 (id wrapper로 범위 제한)
+         - 라디오 라벨(“비교 연도 선택”): 짙은 회색
+         - 라디오 옵션 텍스트: 기본 짙은 회색
+         - 선택된 옵션 텍스트만 검정
+      ====================================================== */
+      #kde-compare-radio div[data-testid="stRadio"] > label {
+        color: #374151 !important; /* gray-700 */
+      }
+
+      /* 옵션 텍스트: 기본값 */
+      #kde-compare-radio input[type="radio"] + div {
+        color: #374151 !important; /* gray-700 */
+      }
+
+      /* 선택된 옵션 텍스트만 검정 */
+      #kde-compare-radio input[type="radio"]:checked + div {
+        color: #111827 !important; /* gray-900 */
+      }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
 
 st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
@@ -607,7 +628,7 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
 
 def _condition_caption():
     # ✅ 발표용: 방법을 짧고 자연스럽게 설명
-    return f"상위 10% 거래만 사용 · 값: {KDE_VALUE_LABEL_FIXED} · bw={DEFAULT_BW:.2f}"
+    return f"상위 10% 거래만 사용 · 값: {KDE_VALUE_LABEL_FIXED}"
 
 
 def _compare_narrative_for_year(y: int) -> str:
@@ -678,19 +699,27 @@ def render_kde_section():
     # -----------------------------------------------------
     st.divider()
     st.subheader("돈의 무게중심은 어디로 이동했나")
-    st.caption("2025년을 기준 시점으로 고정하고, 과거의 ‘점’이 어떻게 ‘권역’이 되었는지 비교합니다.")
 
-    # ✅ 비교 연도 선택: 라디오(동그라미) + 3개 고정(2019/2021/2023)
+    # ✅ caption 대신 검은색 텍스트로
+    st.markdown(
+        "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
+        "2025년을 기준 시점으로 고정하고, 과거의 ‘점’이 어떻게 ‘권역’이 되었는지 비교합니다."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ✅ 비교 연도 선택 라디오를 wrapper로 감싸서 “이 라디오만” CSS 적용
+    st.markdown("<div id='kde-compare-radio'>", unsafe_allow_html=True)
     year_left = st.radio(
         "비교 연도 선택",
         options=[2019, 2021, 2023],
         horizontal=True,
         key="kde_compare_left_year_radio",
     )
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ✅ 2025는 화면에 표시하지 않고 내부 기준값으로만 고정
     year_right = 2025
-
 
     st.info(_compare_narrative_for_year(int(year_left)))
 
@@ -753,7 +782,14 @@ def render_kde_section():
     # -----------------------------------------------------
     st.divider()
     st.subheader("권역이 만들어지는 7년의 흐름")
-    st.caption("▶︎ Play를 누르면, 자본이 어디로 모여 ‘굳어지는지’를 한 번에 볼 수 있습니다.")
+
+    # ✅ caption 대신 검은색 텍스트로
+    st.markdown(
+        "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
+        "▶︎ Play를 누르면, 자본이 어디로 모여 ‘굳어지는지’를 한 번에 볼 수 있습니다."
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     # ---- state init
     if "kde_playing" not in st.session_state:
