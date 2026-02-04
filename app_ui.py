@@ -60,10 +60,32 @@ st.markdown(
         font-size: 0.85rem;
         color: #6B7280; /* gray-500 */
       }
+
+      /* ======================================================
+         ✅ KDE 비교 라디오 전용 스타일 (id wrapper로 범위 제한)
+         - 라디오 라벨(“비교 연도 선택”): 짙은 회색
+         - 라디오 옵션 텍스트: 기본 짙은 회색
+         - 선택된 옵션 텍스트만 검정
+      ====================================================== */
+      #kde-compare-radio div[data-testid="stRadio"] > label {
+        color: #374151 !important; /* gray-700 */
+      }
+
+      /* 옵션 텍스트: 기본값 */
+      #kde-compare-radio input[type="radio"] + div {
+        color: #374151 !important; /* gray-700 */
+      }
+
+      /* 선택된 옵션 텍스트만 검정 */
+      #kde-compare-radio input[type="radio"]:checked + div {
+        color: #111827 !important; /* gray-900 */
+      }
     </style>
     """,
     unsafe_allow_html=True,
 )
+
+
 st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
 
@@ -606,7 +628,7 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
 
 def _condition_caption():
     # ✅ 발표용: 방법을 짧고 자연스럽게 설명
-    return f"상위 10% 거래만 사용 · 값: {KDE_VALUE_LABEL_FIXED} · bw={DEFAULT_BW:.2f}"
+    return f"상위 10% 거래에 대해 {KDE_VALUE_LABEL_FIXED}을 기준으로 계산한 KDE(Kernel Density Estimation) 지도"
 
 
 def _compare_narrative_for_year(y: int) -> str:
@@ -637,8 +659,7 @@ def _phase_label_for_year(y: int) -> str:
 # 5) KDE 섹션 (발표/시연용)
 # =========================================================
 def render_kde_section():
-    st.header("서울은 하나의 시장이 아니다")
-    st.caption("거래 ‘건수’가 아니라 ‘거래 금액’으로 본, 자본의 무게중심 지도")
+    st.header("거래 금액으로 본 자본의 무게중심 지도")
     st.caption(_condition_caption())
 
     path_tx = CSV_PATH_DEFAULT
@@ -677,26 +698,27 @@ def render_kde_section():
     # -----------------------------------------------------
     st.divider()
     st.subheader("돈의 무게중심은 어디로 이동했나")
-    st.caption("2025년을 기준 시점으로 고정하고, 과거의 ‘점’이 어떻게 ‘권역’이 되었는지 비교합니다.")
 
-    # ✅ 발표 흐름에 맞춘 추천 비교 연도
-    compare_year_candidates = [2019, 2021, 2023]
-    year_left = st.selectbox("비교 연도 선택", compare_year_candidates, index=0, key="kde_compare_left_year")
-
-    year_right = 2025
-
-    # ✅ 오른쪽 '2025 고정' 배지
+    # ✅ caption 대신 검은색 텍스트로
     st.markdown(
-        """
-        <div style="display:flex; gap:0.5rem; align-items:center; margin-top:0.25rem; margin-bottom:0.25rem;">
-          <span style="font-size:0.9rem; color:#111827;"><b>기준 시점</b></span>
-          <span style="font-size:0.85rem; padding:0.15rem 0.5rem; border-radius:999px; background:#EEF2FF; color:#3730A3;">
-            2025 고정
-          </span>
-        </div>
-        """,
+        "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
+        "2025년을 기준 시점으로 고정하고, 과거의 ‘점’이 어떻게 ‘권역’이 되었는지 비교합니다."
+        "</div>",
         unsafe_allow_html=True,
     )
+
+    # ✅ 비교 연도 선택 라디오를 wrapper로 감싸서 “이 라디오만” CSS 적용
+    st.markdown("<div id='kde-compare-radio'>", unsafe_allow_html=True)
+    year_left = st.radio(
+        "비교 연도 선택",
+        options=[2019, 2021, 2023],
+        horizontal=True,
+        key="kde_compare_left_year_radio",
+    )
+    st.markdown("</div>", unsafe_allow_html=True)
+
+    # ✅ 2025는 화면에 표시하지 않고 내부 기준값으로만 고정
+    year_right = 2025
 
     st.info(_compare_narrative_for_year(int(year_left)))
 
@@ -706,7 +728,7 @@ def render_kde_section():
     fig_cmp = make_subplots(
         rows=1, cols=2,
         horizontal_spacing=0.03,
-        subplot_titles=(f"{int(year_left)}년", f"{int(year_right)}년 (기준)"),
+        subplot_titles=(f"{int(year_left)}년", f"{int(year_right)}년"),
     )
 
     hmL = heatmap_trace(ZL, extent, vmax_fixed, KDE_COLORSCALE, show_scale=False)
@@ -759,7 +781,14 @@ def render_kde_section():
     # -----------------------------------------------------
     st.divider()
     st.subheader("권역이 만들어지는 7년의 흐름")
-    st.caption("▶︎ Play를 누르면, 자본이 어디서 모여 어디로 ‘굳어지는지’를 한 번에 볼 수 있습니다.")
+
+    # ✅ caption 대신 검은색 텍스트로
+    st.markdown(
+        "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
+        "▶︎ Play를 누르면, 자본이 어디로 모여 ‘굳어지는지’를 한 번에 볼 수 있습니다."
+        "</div>",
+        unsafe_allow_html=True,
+    )
 
     # ---- state init
     if "kde_playing" not in st.session_state:
@@ -774,10 +803,10 @@ def render_kde_section():
     with ctrl1:
         c1a, c1b = st.columns(2)
         with c1a:
-            if st.button("▶ Play", use_container_width=True, key="kde_btn_play"):
+            if st.button("▶", use_container_width=True, key="kde_btn_play"):
                 st.session_state.kde_playing = True
         with c1b:
-            if st.button("■ Pause", use_container_width=True, key="kde_btn_pause"):
+            if st.button("■", use_container_width=True, key="kde_btn_pause"):
                 st.session_state.kde_playing = False
 
     with ctrl2:
@@ -794,15 +823,38 @@ def render_kde_section():
             st.session_state.kde_year_cur = int(year_slider)
 
     with ctrl3:
+        # ✅ 재생 속도: 3단 고정 + 슬라이더 값 표시를 라벨로
+        SPEED_VALUES = [0.5, 1.0, 2.0]  # (초)
+        SPEED_LABELS = {0.5: "빠르게", 1.0: "보통", 2.0: "느리게"}
+
+        # 현재 세션 값이 3단 중 하나가 아니면, 가장 가까운 값으로 스냅
+        cur = float(st.session_state.kde_speed)
+        if cur not in SPEED_VALUES:
+            st.session_state.kde_speed = min(SPEED_VALUES, key=lambda v: abs(v - cur))
+
         speed_sec = st.slider(
-            "재생 속도(초)",
-            min_value=0.05,
-            max_value=1.00,
-            step=0.05,
+            "재생 속도",
+            min_value=min(SPEED_VALUES),
+            max_value=max(SPEED_VALUES),
             value=float(st.session_state.kde_speed),
+            step=None,  # 연속 슬라이더로 두되 format으로 '라벨'만 보이게 처리
+            format="%s",
             key="kde_speed_streamlit",
         )
-        st.session_state.kde_speed = float(speed_sec)
+
+        # Streamlit slider가 반환하는 float를 3단으로 스냅(안정성)
+        snapped = min(SPEED_VALUES, key=lambda v: abs(v - float(speed_sec)))
+        st.session_state.kde_speed = float(snapped)
+
+        # ✅ 값 표시는 숫자 대신 라벨로 보여주기 (format은 숫자를 못 바꾸는 케이스가 많아서 별도 표시)
+        #    -> 슬라이더 아래에 라벨만 한 줄로 보여주면 UI가 깔끔해짐
+        st.markdown(
+            f"<div style='margin-top:-0.25rem; color:#EF4444; font-weight:600;'>"
+            f"{SPEED_LABELS[float(st.session_state.kde_speed)]}"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
 
     # ✅ 연도 상태 문장 (차트 위)
     cur_year = int(st.session_state.kde_year_cur)

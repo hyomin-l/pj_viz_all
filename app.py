@@ -628,7 +628,7 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
 
 def _condition_caption():
     # ✅ 발표용: 방법을 짧고 자연스럽게 설명
-    return f"상위 10% 거래만 사용 · 값: {KDE_VALUE_LABEL_FIXED}"
+    return f"상위 10% 거래에 대해 {KDE_VALUE_LABEL_FIXED}을 기준으로 계산한 KDE(Kernel Density Estimation) 지도"
 
 
 def _compare_narrative_for_year(y: int) -> str:
@@ -659,8 +659,7 @@ def _phase_label_for_year(y: int) -> str:
 # 5) KDE 섹션 (발표/시연용)
 # =========================================================
 def render_kde_section():
-    st.header("서울은 하나의 시장이 아니다")
-    st.caption("'거래 건수'가 아니라 ‘거래 금액’으로 본, 자본의 무게중심 지도")
+    st.header("거래 금액으로 본 자본의 무게중심 지도")
     st.caption(_condition_caption())
 
     path_tx = CSV_PATH_DEFAULT
@@ -804,10 +803,10 @@ def render_kde_section():
     with ctrl1:
         c1a, c1b = st.columns(2)
         with c1a:
-            if st.button("▶ Play", use_container_width=True, key="kde_btn_play"):
+            if st.button("▶", use_container_width=True, key="kde_btn_play"):
                 st.session_state.kde_playing = True
         with c1b:
-            if st.button("■ Pause", use_container_width=True, key="kde_btn_pause"):
+            if st.button("■", use_container_width=True, key="kde_btn_pause"):
                 st.session_state.kde_playing = False
 
     with ctrl2:
@@ -826,13 +825,15 @@ def render_kde_section():
     with ctrl3:
         speed_sec = st.slider(
             "재생 속도(초)",
-            min_value=0.05,
-            max_value=1.00,
-            step=0.05,
+            min_value=0.5,
+            max_value=2.5,
+            step=1.0,
             value=float(st.session_state.kde_speed),
             key="kde_speed_streamlit",
         )
-        st.session_state.kde_speed = float(speed_sec)
+        # 혹시 기존 세션값(예: 0.25)이 들어있으면 3단 중 가장 가까운 값으로 스냅
+        st.session_state.kde_speed = float(speed_sec)   
+
 
     # ✅ 연도 상태 문장 (차트 위)
     cur_year = int(st.session_state.kde_year_cur)
