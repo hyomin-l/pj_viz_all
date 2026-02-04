@@ -581,12 +581,9 @@ def _label_colors_for_mode(b: gpd.GeoDataFrame, mode: str, year: int | None):
     return ["black"] * len(b)
 
 
-def make_label_traces_with_halo(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
+def make_label_trace(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
     """
-    Plotly는 text stroke(외곽선)가 직접 지원이 약해서
-    ✅ 동일 텍스트를 2개 trace로 겹쳐 halo 효과를 만든다.
-      - 아래(halo): 검정/흰색(대비용), 큰 글자
-      - 위(본문): 원래 색, 작은 글자
+    ✅ halo 제거 버전: 구 라벨을 1개 trace로만 렌더링
     """
     if "cx" not in b3857.columns or "cy" not in b3857.columns:
         b = b3857.copy()
@@ -595,34 +592,19 @@ def make_label_traces_with_halo(b3857: gpd.GeoDataFrame, mode: str, year: int | 
     else:
         b = b3857
 
-    main_colors = _label_colors_for_mode(b, mode, year)
+    colors = _label_colors_for_mode(b, mode, year)
 
-    # halo 색: 본문이 white면 black halo, 본문이 black이면 white halo
-    halo_colors = [("black" if c == "white" else "white") for c in main_colors]
-
-    halo = go.Scatter(
+    return go.Scatter(
         x=b["cx"],
         y=b["cy"],
         mode="text",
         text=b["gu"],
         textposition="middle center",
-        textfont=dict(size=14, color=halo_colors),  # halo: 조금 크게
+        textfont=dict(size=11, color=colors),
         hoverinfo="skip",
         showlegend=False,
     )
 
-    main = go.Scatter(
-        x=b["cx"],
-        y=b["cy"],
-        mode="text",
-        text=b["gu"],
-        textposition="middle center",
-        textfont=dict(size=11, color=main_colors),  # main: 원래 크기
-        hoverinfo="skip",
-        showlegend=False,
-    )
-
-    return halo, main
 
 
 def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
@@ -774,16 +756,12 @@ def render_kde_section():
     else:
         fig_cmp.add_annotation(text=f"{int(year_right)}년<br>데이터 없음", x=0.78, y=0.5, xref="paper", yref="paper", showarrow=False)
 
-    bd = make_boundary_traces(b3857)
-    haloL, mainL = make_label_traces_with_halo(b3857, mode=mode, year=int(year_left))
-    haloR, mainR = make_label_traces_with_halo(b3857, mode=mode, year=int(year_right))
+    labL = make_label_trace(b3857, mode=mode, year=int(year_left))
+    labR = make_label_trace(b3857, mode=mode, year=int(year_right))
 
-    fig_cmp.add_trace(bd, row=1, col=1)
-    fig_cmp.add_trace(bd, row=1, col=2)
-    fig_cmp.add_trace(haloL, row=1, col=1)
-    fig_cmp.add_trace(mainL, row=1, col=1)
-    fig_cmp.add_trace(haloR, row=1, col=2)
-    fig_cmp.add_trace(mainR, row=1, col=2)
+    fig_cmp.add_trace(labL, row=1, col=1)
+    fig_cmp.add_trace(labR, row=1, col=2)
+
 
     # 줌 연동
     fig_cmp.update_xaxes(matches="x", row=1, col=2)
@@ -881,9 +859,9 @@ def render_kde_section():
 
         fig.add_trace(make_boundary_traces(b3857))
 
-        halo, main = make_label_traces_with_halo(b3857, mode=mode, year=int(year))
-        fig.add_trace(halo)
-        fig.add_trace(main)
+        lab = make_label_trace(b3857, mode=mode, year=int(year))
+        fig.add_trace(lab)
+
 
         fig.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False)
         fig.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
