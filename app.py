@@ -529,7 +529,6 @@ def compute_Z_all_years_cached(tx_df: pd.DataFrame, geojson_url: str, years: lis
 # Plotly 렌더 유틸: 경계선 + 라벨(중첩 방지)
 # =========================
 def make_boundary_traces(b3857: gpd.GeoDataFrame):
-    # boundary를 한 번에 라인으로 만들기 (MultiPolygon 처리)
     xs, ys = [], []
     for geom in b3857.geometry:
         if geom is None:
@@ -556,10 +555,6 @@ def make_boundary_traces(b3857: gpd.GeoDataFrame):
 
 
 def make_label_trace(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
-    # ✅ 라벨 중첩 방지 핵심:
-    # - "항상 1개 trace"로만 찍는다 (매번 중복 trace 생성 X)
-    # - 그리고 textposition 고정
-    # - 필요하면 일부 구만 강조(원 코드 기준)
     if "cx" not in b3857.columns or "cy" not in b3857.columns:
         b = b3857.copy()
         b["cx"] = b.geometry.centroid.x
@@ -599,14 +594,14 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
     x = np.linspace(xmin, xmax, nx)
     y = np.linspace(ymin, ymax, ny)
 
-    # ✅ plotly 호환성 최강: title은 문자열로
+    # ✅ 범례(컬러바) "조금 더 크게" (요청 반영)
     cb = dict(
-        thickness=14,   # 범례(컬러바) 두께
-        len=0.58,
+        thickness=18,       # <-- 14 -> 18
+        len=0.66,           # <-- 0.58 -> 0.66
         x=colorbar_x,
         y=0.5,
-        tickfont=dict(size=10),
-        title="Value-weighted KDE",  # <-- 여기! titlefont 금지
+        tickfont=dict(size=11),
+        title="Value-weighted KDE",
     )
 
     return go.Heatmap(
@@ -620,29 +615,6 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
         colorbar=cb if show_scale else None,
         hovertemplate="kde=%{z:.3g}<extra></extra>",
     )
-
-
-
-def apply_map_axes(fig, axis_name: str, extent):
-    # axis_name: 'xaxis', 'xaxis2', ...
-    xmin, xmax, ymin, ymax = extent
-    fig.update_layout(**{
-        axis_name: dict(
-            range=[xmin, xmax],
-            showgrid=False, zeroline=False, visible=False,
-            fixedrange=False,  # 줌/팬 가능
-        )
-    })
-    yname = axis_name.replace("xaxis", "yaxis")
-    fig.update_layout(**{
-        yname: dict(
-            range=[ymin, ymax],
-            showgrid=False, zeroline=False, visible=False,
-            scaleanchor=axis_name.replace("axis", ""),
-            scaleratio=1,
-            fixedrange=False,
-        )
-    })
 
 
 # =========================================================
@@ -724,16 +696,11 @@ def render_kde_section():
 
     # -----------------------------------------------------
     # (A) 거래 금액 가중 KDE 비교
-    # 요구사항:
-    # - 3열: (좌 옵션+차트), (우 옵션+차트), (범례) 이지만 범례는 작게
-    # - 옵션과 연도 표기가 각 차트 "같은 열"에
-    # - 좌/우 줌 연동 + 차트가 움직이지 않게(레이아웃 고정)
     # -----------------------------------------------------
     st.header("거래 금액 가중 KDE 비교")
     st.caption(make_condition_text_simple(mode=mode, value_label=value_label, bw=float(bw)))
 
     colL, colR = st.columns([1, 1], vertical_alignment="top")
-
     with colL:
         year_left = st.selectbox("연도(좌)", years_all, index=0, key="year_left_compare")
     with colR:
@@ -748,16 +715,14 @@ def render_kde_section():
         subplot_titles=(f"{int(year_left)}년", f"{int(year_right)}년"),
     )
 
-    # heatmap (only right shows colorbar)
     hmL = heatmap_trace(ZL, extent, vmax_fixed, colorscale, show_scale=False)
-    hmR = heatmap_trace(ZR, extent, vmax_fixed, colorscale, show_scale=True, colorbar_x=1.02)
+    hmR = heatmap_trace(ZR, extent, vmax_fixed, colorscale, show_scale=True, colorbar_x=1.03)
 
     if hmL is not None:
         fig_cmp.add_trace(hmL, row=1, col=1)
     if hmR is not None:
         fig_cmp.add_trace(hmR, row=1, col=2)
 
-    # boundary + labels (각 subplot에 1번씩만!)
     bd = make_boundary_traces(b3857)
     labL = make_label_trace(b3857, mode=mode, year=int(year_left))
     labR = make_label_trace(b3857, mode=mode, year=int(year_right))
@@ -767,12 +732,10 @@ def render_kde_section():
     fig_cmp.add_trace(labL, row=1, col=1)
     fig_cmp.add_trace(labR, row=1, col=2)
 
-    # axis fixed + zoom sync
-    # - x2 matches x, y2 matches y => 줌/팬 연동
+    # 줌 연동
     fig_cmp.update_xaxes(matches="x", row=1, col=2)
     fig_cmp.update_yaxes(matches="y", row=1, col=2)
 
-    # range 고정(초기 위치 동일하게)
     xmin, xmax, ymin, ymax = extent
     fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=1, col=1)
     fig_cmp.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False,
@@ -796,105 +759,99 @@ def render_kde_section():
 
     # -----------------------------------------------------
     # (B) 거래 금액 가중 KDE의 변화
-    # 요구사항:
-    # - Play 끊김 완화: rerun 루프 대신 plotly animation(frames) 사용
+    # - Streamlit UI(차트 위 컨트롤)로 복구
+    # - Plotly 내부 슬라이더/버튼 제거
+    # - 끊김 완화: placeholder + 최소 rerun 루프
     # -----------------------------------------------------
     st.header("거래 금액 가중 KDE의 변화")
     st.caption(make_condition_text_simple(mode=mode, value_label=value_label, bw=float(bw)))
 
-    # 연도 슬라이더(수동 확인용)
-    year_anim = st.slider("연도", 2019, 2025, 2019, 1, key="kde_anim_year")
+    # ---- state init
+    if "kde_playing" not in st.session_state:
+        st.session_state.kde_playing = False
+    if "kde_year_cur" not in st.session_state:
+        st.session_state.kde_year_cur = 2019
+    if "kde_speed" not in st.session_state:
+        st.session_state.kde_speed = 0.25
 
-    # 재생 속도(프레임 ms)
-    speed_sec = st.slider("재생 속도(초)", 0.05, 1.00, 0.25, 0.05, key="kde_anim_speed")
+    # ---- controls (예전처럼: Play / 연도 / 속도)
+    ctrl1, ctrl2, ctrl3 = st.columns([1.0, 2.2, 2.2], vertical_alignment="center")
 
-    # figure base
-    base_year = int(year_anim)
-    Z0 = Z_by_year.get(base_year)
+    with ctrl1:
+        c1a, c1b = st.columns(2)
+        with c1a:
+            if st.button("▶ Play", width="stretch", key="kde_btn_play"):
+                st.session_state.kde_playing = True
+        with c1b:
+            if st.button("■ Pause", width="stretch", key="kde_btn_pause"):
+                st.session_state.kde_playing = False
 
-    fig_anim = go.Figure()
+    with ctrl2:
+        year_slider = st.slider(
+            "연도",
+            min_value=2019,
+            max_value=2025,
+            step=1,
+            value=int(st.session_state.kde_year_cur),
+            disabled=bool(st.session_state.kde_playing),
+            key="kde_year_slider_streamlit",
+        )
+        if not st.session_state.kde_playing:
+            st.session_state.kde_year_cur = int(year_slider)
 
-    # base heatmap + boundary + labels
-    hm0 = heatmap_trace(Z0, extent, vmax_fixed, colorscale, show_scale=True, colorbar_x=1.02)
-    if hm0 is not None:
-        fig_anim.add_trace(hm0)
+    with ctrl3:
+        speed_sec = st.slider(
+            "재생 속도(초)",
+            min_value=0.05,
+            max_value=1.00,
+            step=0.05,
+            value=float(st.session_state.kde_speed),
+            key="kde_speed_streamlit",
+        )
+        st.session_state.kde_speed = float(speed_sec)
 
-    fig_anim.add_trace(make_boundary_traces(b3857))
-    fig_anim.add_trace(make_label_trace(b3857, mode=mode, year=base_year))
+    # ---- chart placeholder
+    chart_slot = st.empty()
 
-    # frames: 2019~2025
-    frames = []
-    for yr in years_all:
-        Zy = Z_by_year.get(int(yr))
-        hm = heatmap_trace(Zy, extent, vmax_fixed, colorscale, show_scale=True, colorbar_x=1.02)
-        # 라벨 색은 year에 따라 일부 override가 있으니 frame마다 label도 교체
-        lab = make_label_trace(b3857, mode=mode, year=int(yr))
-        fr_data = []
+    def make_single_year_fig(year: int):
+        Zy = Z_by_year.get(int(year))
+        fig = go.Figure()
+
+        hm = heatmap_trace(Zy, extent, vmax_fixed, colorscale, show_scale=True, colorbar_x=1.03)
         if hm is not None:
-            fr_data.append(hm)
-        else:
-            fr_data.append(go.Heatmap(z=[[0]], showscale=False))
-        fr_data.append(make_boundary_traces(b3857))
-        fr_data.append(lab)
-        frames.append(go.Frame(name=str(int(yr)), data=fr_data, layout=go.Layout(title_text=f"{int(yr)}년")))
+            fig.add_trace(hm)
 
-    fig_anim.frames = frames
+        fig.add_trace(make_boundary_traces(b3857))
+        fig.add_trace(make_label_trace(b3857, mode=mode, year=int(year)))
 
-    # axes & layout
-    fig_anim.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False)
-    fig_anim.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
+        fig.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False)
+        fig.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
 
-    fig_anim.update_layout(
-        height=520,
-        margin=dict(l=10, r=10, t=45, b=10),
-        title=dict(text=f"{base_year}년", x=0.5),
-        updatemenus=[
-            dict(
-                type="buttons",
-                direction="left",
-                x=0.0,
-                y=1.08,
-                buttons=[
-                    dict(
-                        label="▶ Play",
-                        method="animate",
-                        args=[
-                            None,
-                            dict(
-                                frame=dict(duration=int(speed_sec * 1000), redraw=True),
-                                transition=dict(duration=0),
-                                fromcurrent=True,
-                                mode="immediate",
-                            ),
-                        ],
-                    ),
-                    dict(
-                        label="■ Pause",
-                        method="animate",
-                        args=[[None], dict(frame=dict(duration=0, redraw=False), mode="immediate")],
-                    ),
-                ],
-            )
-        ],
-        sliders=[
-            dict(
-                active=years_all.index(base_year),
-                x=0.2, y=1.08,
-                len=0.7,
-                currentvalue=dict(prefix="연도: "),
-                steps=[
-                    dict(
-                        method="animate",
-                        args=[[str(int(yr))], dict(mode="immediate", frame=dict(duration=0, redraw=True), transition=dict(duration=0))],
-                        label=str(int(yr)),
-                    )
-                    for yr in years_all
-                ],
-            )
-        ],
+        fig.update_layout(
+            height=520,
+            margin=dict(l=10, r=10, t=45, b=10),
+            title=dict(text=f"{int(year)}년", x=0.5),
+        )
+        return fig
+
+    # ---- render current
+    chart_slot.plotly_chart(
+        make_single_year_fig(int(st.session_state.kde_year_cur)),
+        width="stretch",
+        config={"scrollZoom": True, "displayModeBar": True},
     )
 
-    st.plotly_chart(fig_anim, width="stretch", config={"scrollZoom": True, "displayModeBar": True})
+    # ---- play loop (Streamlit rerun)
+    if st.session_state.kde_playing:
+        time.sleep(float(st.session_state.kde_speed))
+
+        cur = int(st.session_state.kde_year_cur)
+        if cur < 2025:
+            st.session_state.kde_year_cur = cur + 1
+        else:
+            st.session_state.kde_playing = False
+
+        st.rerun()
 
 
 # =========================================================
