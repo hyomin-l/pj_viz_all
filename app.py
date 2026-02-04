@@ -756,12 +756,18 @@ def render_kde_section():
     else:
         fig_cmp.add_annotation(text=f"{int(year_right)}년<br>데이터 없음", x=0.78, y=0.5, xref="paper", yref="paper", showarrow=False)
 
+    bdL = make_boundary_traces(b3857)
+    bdR = make_boundary_traces(b3857)
+
+    fig_cmp.add_trace(bdL, row=1, col=1)
+    fig_cmp.add_trace(bdR, row=1, col=2)
+
     labL = make_label_trace(b3857, mode=mode, year=int(year_left))
     labR = make_label_trace(b3857, mode=mode, year=int(year_right))
 
     fig_cmp.add_trace(labL, row=1, col=1)
     fig_cmp.add_trace(labR, row=1, col=2)
-
+    
 
     # 줌 연동
     fig_cmp.update_xaxes(matches="x", row=1, col=2)
