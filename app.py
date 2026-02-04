@@ -64,6 +64,7 @@ st.markdown(
     """,
     unsafe_allow_html=True,
 )
+
 st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
 
@@ -329,6 +330,11 @@ def render_scatter_section():
 
 # =========================================================
 # 4) [코드2] (KDE) 섹션: 폴더 구조/파일명 반영
+#   ✅ 발표/시연용 UI/UX 반영 버전
+#   - "옵션" 제거 (하나의 강한 관점 고정)
+#   - 비교: (과거 연도) vs (2025 고정)
+#   - 변화: Play/연도/속도 + "해석 가이드" + 연도별 상태 문장
+#   - 컬러바: 숫자 중심 → 해석 중심(자본 밀도)
 # =========================================================
 CSV_PATH_DEFAULT = "아파트실거래가2015_2025.csv"
 GEOJSON_URL_DEFAULT = (
@@ -336,18 +342,18 @@ GEOJSON_URL_DEFAULT = (
     "hangjeongdong_%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C.geojson"
 )
 
-VALUE_LABEL_TO_COL = {
-    "거래가격": "price_manwon",
-    "평당 거래가격": "price_per_pyeong_manwon",
-}
+# ✅ 발표용 고정 설정(옵션 제거)
+# - 상위 10% 거래
+# - 값 컬럼: (평당 거래가격) 권장
+KDE_MODE_FIXED = "top_pct"                  # "raw" 또는 "top_pct" 중 발표용은 top_pct 고정
+KDE_VALUE_LABEL_FIXED = "평당 거래가격"      # 라벨용(캡션)
+KDE_VALUE_COL_FIXED = "price_per_pyeong_manwon"  # 실제 계산 컬럼
 
-
-def mode_label(mode: str) -> str:
-    return "전체 거래" if mode == "raw" else "상위 10%"
-
-
-def make_condition_text_simple(mode: str, value_label: str, bw: float) -> str:
-    return f"{mode_label(mode)} 기준 ・ 값 컬럼: {value_label} ・ bw: {bw:.2f}"
+DEFAULT_CAP = 9000
+DEFAULT_BW = 0.22
+DEFAULT_GRIDSIZE = 250
+KDE_TOP_PCT = 0.10
+KDE_COLORSCALE = "RdYlBu_r"
 
 
 def stable_seed(*parts) -> int:
@@ -423,36 +429,6 @@ def prepare_grid_and_boundary_from_url(url_geojson: str, gridsize: int):
     return b3857, positions, extent
 
 
-def synthetic_points_value_weighted_for_year(tx_df, gu_boundary, year, cap=9000, value_col="price_manwon"):
-    b = gu_boundary.to_crs(epsg=3857).copy()
-    dfy = tx_df[tx_df["year"] == year].copy()
-
-    v = pd.to_numeric(dfy[value_col], errors="coerce")
-    dfy = dfy.assign(_v=v).dropna(subset=["gu", "_v"])
-    v_by_gu = dfy.groupby("gu")["_v"].sum()
-
-    v_arr = v_by_gu.reindex(b["gu"]).fillna(0.0).values
-    total_v = float(np.nansum(v_arr))
-    if total_v <= 0:
-        return np.array([]), np.array([]), 0.0
-
-    share = v_arr / total_v
-    n_dot = np.round(share * cap).astype(int)
-
-    pts = []
-    for i, gu in enumerate(b["gu"].values):
-        k = int(n_dot[i])
-        if k <= 0:
-            continue
-        poly = b.loc[b["gu"] == gu, "geometry"].values[0]
-        seed = stable_seed(year, gu, "raw")
-        pts.extend(sample_points_within_polygon(poly, k, seed=seed))
-
-    xs = np.array([p.x for p in pts], dtype=float)
-    ys = np.array([p.y for p in pts], dtype=float)
-    return xs, ys, total_v
-
-
 def filter_top_percent_trades(tx_df, year, value_col="price_manwon", top_pct=0.10):
     d = tx_df[tx_df["year"] == year].copy()
     if len(d) == 0:
@@ -493,16 +469,11 @@ def synthetic_points_value_weighted_top_pct(tx_df, gu_boundary, year, value_col=
     return xs, ys
 
 
-def kde_Z_single_year(tx_df, gu_boundary, positions, year, mode="top_pct",
+def kde_Z_single_year(tx_df, gu_boundary, positions, year,
                       value_col="price_manwon", cap=9000, bw=0.22, gridsize=250, top_pct=0.10):
-    if mode == "raw":
-        x, y, _ = synthetic_points_value_weighted_for_year(tx_df, gu_boundary, year, cap=cap, value_col=value_col)
-        if len(x) == 0:
-            return None
-        kde = gaussian_kde(np.vstack([x, y]), bw_method=bw)
-        return kde(positions).reshape(gridsize, gridsize)
-
-    x, y = synthetic_points_value_weighted_top_pct(tx_df, gu_boundary, year, value_col=value_col, top_pct=top_pct, cap=cap)
+    x, y = synthetic_points_value_weighted_top_pct(
+        tx_df, gu_boundary, year, value_col=value_col, top_pct=top_pct, cap=cap
+    )
     if len(x) == 0:
         return None
     kde = gaussian_kde(np.vstack([x, y]), bw_method=bw)
@@ -511,7 +482,7 @@ def kde_Z_single_year(tx_df, gu_boundary, positions, year, mode="top_pct",
 
 @st.cache_data(show_spinner=True)
 def compute_Z_all_years_cached(tx_df: pd.DataFrame, geojson_url: str, years: list[int],
-                               mode: str, value_col: str, cap: int, bw: float, gridsize: int, top_pct: float):
+                               value_col: str, cap: int, bw: float, gridsize: int, top_pct: float):
     gu_boundary = load_gu_boundary_from_geojson(geojson_url)
     b3857, positions, extent = prepare_grid_and_boundary_from_url(geojson_url, gridsize)
 
@@ -521,7 +492,6 @@ def compute_Z_all_years_cached(tx_df: pd.DataFrame, geojson_url: str, years: lis
         Z = kde_Z_single_year(
             tx_df, gu_boundary, positions,
             year=int(yr),
-            mode=mode,
             value_col=value_col,
             cap=cap,
             bw=bw,
@@ -539,7 +509,7 @@ def compute_Z_all_years_cached(tx_df: pd.DataFrame, geojson_url: str, years: lis
 
 
 # =========================
-# Plotly 렌더 유틸: 경계선 + 라벨(가독성 안정화: halo)
+# Plotly 렌더 유틸: 경계선 + 라벨(halo 제거)
 # =========================
 def make_boundary_traces(b3857: gpd.GeoDataFrame):
     xs, ys = [], []
@@ -557,34 +527,31 @@ def make_boundary_traces(b3857: gpd.GeoDataFrame):
             xs += list(x) + [None]
             ys += list(y) + [None]
 
-    # ✅ 히트맵(레드)과 의미 충돌 방지: 중립 회색 경계선
+    # ✅ 발표용: 선을 조금 더 “지도처럼” 보이게(너무 얇으면 heat에 묻힘)
     return go.Scatter(
         x=xs, y=ys,
         mode="lines",
-        line=dict(width=1, color="#CBD5E1"),  # slate-300
-        opacity=0.7,
+        line=dict(width=1.2, color="#CBD5E1"),  # slate-300
+        opacity=0.85,
         hoverinfo="skip",
         showlegend=False,
     )
 
 
-def _label_colors_for_mode(b: gpd.GeoDataFrame, mode: str, year: int | None):
-    if mode == "top_pct":
-        black_set = {"용산구", "강남구", "서초구", "송파구"}
-        colors = []
-        for gu in b["gu"].tolist():
-            c = "black" if gu in black_set else "white"
-            if year is not None and (int(year) == 2019 and gu == "강남구"):
-                c = "white"
-            colors.append(c)
-        return colors
-    return ["black"] * len(b)
+def _label_colors_for_year(b: gpd.GeoDataFrame, year: int | None):
+    # ✅ heat 위 라벨 가독성(발표용) : 핵심권역은 검정, 나머지는 흰색
+    black_set = {"용산구", "강남구", "서초구", "송파구"}
+    colors = []
+    for gu in b["gu"].tolist():
+        c = "black" if gu in black_set else "white"
+        # 2019 강남구는 배경에 따라 흰색이 더 안전했던 케이스 유지
+        if year is not None and int(year) == 2019 and gu == "강남구":
+            c = "white"
+        colors.append(c)
+    return colors
 
 
-def make_label_trace(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
-    """
-    ✅ halo 제거 버전: 구 라벨을 1개 trace로만 렌더링
-    """
+def make_label_trace(b3857: gpd.GeoDataFrame, year: int | None):
     if "cx" not in b3857.columns or "cy" not in b3857.columns:
         b = b3857.copy()
         b["cx"] = b.geometry.centroid.x
@@ -592,7 +559,7 @@ def make_label_trace(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
     else:
         b = b3857
 
-    colors = _label_colors_for_mode(b, mode, year)
+    colors = _label_colors_for_year(b, year)
 
     return go.Scatter(
         x=b["cx"],
@@ -606,7 +573,6 @@ def make_label_trace(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
     )
 
 
-
 def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
     if Z is None:
         return None
@@ -616,15 +582,14 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
     x = np.linspace(xmin, xmax, nx)
     y = np.linspace(ymin, ymax, ny)
 
-    # ✅ 범례(컬러바) 더 키우기 + 타이틀/틱 가독성 상승
-    #    plotly 호환: title은 dict로( titlefont 금지 )
+    # ✅ 발표용 컬러바: 숫자보다 “의미”를 먼저 보이게
     cb = dict(
         thickness=18,
-        len=0.68,
+        len=0.70,
         x=colorbar_x,
         y=0.5,
-        tickfont=dict(size=11, color="#4B5563"),
-        title=dict(text="Value-weighted KDE", font=dict(size=12, color="#374151")),
+        tickfont=dict(size=10, color="#4B5563"),
+        title=dict(text="자본 밀도", font=dict(size=12, color="#111827")),
     )
 
     return go.Heatmap(
@@ -636,57 +601,49 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
         zmax=float(vmax),
         showscale=bool(show_scale),
         colorbar=cb if show_scale else None,
-        hovertemplate="kde=%{z:.3g}<extra></extra>",
+        hovertemplate="자본 밀도=%{z:.3g}<extra></extra>",
     )
 
 
+def _condition_caption():
+    # ✅ 발표용: 방법을 짧고 자연스럽게 설명
+    return f"상위 10% 거래만 사용 · 값: {KDE_VALUE_LABEL_FIXED} · bw={DEFAULT_BW:.2f}"
+
+
+def _compare_narrative_for_year(y: int) -> str:
+    # ✅ 비교 파트(연도 vs 2025) 설명 문구
+    msg = {
+        2019: "2019년엔 ‘점’처럼 모였던 자본이, 2025년엔 ‘권역’으로 연결됩니다.",
+        2021: "2021년의 확산은 ‘분산’이 아니라, 권역이 만들어지는 전조였습니다.",
+        2023: "2023년 저점 이후, 자본은 서울 전반이 아니라 핵심 권역으로 직행합니다.",
+    }
+    return msg.get(int(y), "과거의 돈이 2025년에 어떻게 ‘권역’으로 굳어졌는지 비교합니다.")
+
+
+def _phase_label_for_year(y: int) -> str:
+    # ✅ 변화 파트(연속 재생) 상태 문장
+    phase = {
+        2019: "집중의 시작 (Point)",
+        2020: "확장 전개 (Widening)",
+        2021: "확산처럼 보이는 구간 (Pre-zone)",
+        2022: "외곽은 식고 중심만 남음 (Cooling)",
+        2023: "저점 이후 재집중 (Re-focus)",
+        2024: "권역의 윤곽 (Zone forming)",
+        2025: "권역의 완성 (Zone)",
+    }
+    return phase.get(int(y), "")
+
+
 # =========================================================
-# 5) KDE 섹션 (Plotly 렌더링)
+# 5) KDE 섹션 (발표/시연용)
 # =========================================================
 def render_kde_section():
-    st.header("Seoul KDE")
-
-    DEFAULT_CAP = 9000
-    DEFAULT_BW = 0.22
-    DEFAULT_GRIDSIZE = 250
+    st.header("서울은 하나의 시장이 아니다")
+    st.caption("'거래 건수'가 아니라 ‘거래 금액’으로 본, 자본의 무게중심 지도")
+    st.caption(_condition_caption())
 
     path_tx = CSV_PATH_DEFAULT
     geojson_url = GEOJSON_URL_DEFAULT
-
-    show_options = st.toggle("옵션", value=False, key="kde_show_options")
-
-    if show_options:
-        row1a, row1b = st.columns([1.4, 1.4], vertical_alignment="center")
-
-        with row1a:
-            mode_ui = st.radio("모드", ["전체 거래", "상위 10%"], index=1, horizontal=True, key="mode_ui")
-            mode = "raw" if mode_ui == "전체 거래" else "top_pct"
-
-        with row1b:
-            value_label = st.radio("값 컬럼", list(VALUE_LABEL_TO_COL.keys()), index=1, horizontal=True, key="value_label_ui")
-            value_col = VALUE_LABEL_TO_COL[value_label]
-
-        row2a, row2b, row2c = st.columns([1.4, 1.4, 1.4], vertical_alignment="center")
-        with row2a:
-            cap = st.slider("cap(합성점 수)", 1000, 20000, int(DEFAULT_CAP), 500, key="cap_ui")
-        with row2b:
-            bw = st.slider("bw(bandwidth)", 0.05, 1.00, float(DEFAULT_BW), 0.01, key="bw_ui")
-        with row2c:
-            gridsize = st.slider("gridsize", 120, 400, int(DEFAULT_GRIDSIZE), 10, key="gridsize_ui")
-
-        st.divider()
-    else:
-        mode_ui = st.session_state.get("mode_ui", "상위 10%")
-        mode = "raw" if mode_ui == "전체 거래" else "top_pct"
-
-        value_label = st.session_state.get("value_label_ui", "평당 거래가격")
-        if value_label not in VALUE_LABEL_TO_COL:
-            value_label = "평당 거래가격"
-        value_col = VALUE_LABEL_TO_COL[value_label]
-
-        cap = int(st.session_state.get("cap_ui", DEFAULT_CAP))
-        bw = float(st.session_state.get("bw_ui", DEFAULT_BW))
-        gridsize = int(st.session_state.get("gridsize_ui", DEFAULT_GRIDSIZE))
 
     # 데이터 로드 + KDE 계산
     try:
@@ -702,37 +659,40 @@ def render_kde_section():
         return
 
     years_all = list(range(2019, 2026))
-    top_pct = 0.10
-    colorscale = "RdYlBu_r"  # plotly built-in
 
     Z_by_year, vmax_fixed, b3857, extent = compute_Z_all_years_cached(
         tx_df=tx,
         geojson_url=geojson_url,
         years=years_all,
-        mode=mode,
-        value_col=value_col,
-        cap=int(cap),
-        bw=float(bw),
-        gridsize=int(gridsize),
-        top_pct=top_pct
+        value_col=KDE_VALUE_COL_FIXED,
+        cap=int(DEFAULT_CAP),
+        bw=float(DEFAULT_BW),
+        gridsize=int(DEFAULT_GRIDSIZE),
+        top_pct=float(KDE_TOP_PCT)
     )
 
     xmin, xmax, ymin, ymax = extent
 
     # -----------------------------------------------------
-    # (A) 거래 금액 가중 KDE 비교
-    #  - 모드바는 hover에서만 표시(시각적 잡음 ↓)
-    #  - 안내 캡션 1줄 추가(줌 동기화 힌트)
+    # (A) 비교: "각 연도 vs 2025(고정)"
     # -----------------------------------------------------
-    st.header("거래 금액 가중 KDE 비교")
-    st.caption(make_condition_text_simple(mode=mode, value_label=value_label, bw=float(bw)))
-    st.caption("두 지도는 줌/이동이 동기화됩니다. 한쪽만 조작해도 함께 움직여요.")
+    st.divider()
+    st.subheader("돈의 무게중심은 어디로 이동했나")
+    st.caption("2025년을 기준 시점으로 고정하고, 과거의 ‘점’이 어떻게 ‘권역’이 되었는지 비교합니다.")
 
-    colL, colR = st.columns([1, 1], vertical_alignment="top")
-    with colL:
-        year_left = st.selectbox("연도(좌)", years_all, index=0, key="year_left_compare")
-    with colR:
-        year_right = st.selectbox("연도(우)", years_all, index=len(years_all) - 1, key="year_right_compare")
+    # ✅ 비교 연도 선택: 라디오(동그라미) + 3개 고정(2019/2021/2023)
+    year_left = st.radio(
+        "비교 연도 선택",
+        options=[2019, 2021, 2023],
+        horizontal=True,
+        key="kde_compare_left_year_radio",
+    )
+
+    # ✅ 2025는 화면에 표시하지 않고 내부 기준값으로만 고정
+    year_right = 2025
+
+
+    st.info(_compare_narrative_for_year(int(year_left)))
 
     ZL = Z_by_year.get(int(year_left))
     ZR = Z_by_year.get(int(year_right))
@@ -743,8 +703,8 @@ def render_kde_section():
         subplot_titles=(f"{int(year_left)}년", f"{int(year_right)}년"),
     )
 
-    hmL = heatmap_trace(ZL, extent, vmax_fixed, colorscale, show_scale=False)
-    hmR = heatmap_trace(ZR, extent, vmax_fixed, colorscale, show_scale=True, colorbar_x=1.03)
+    hmL = heatmap_trace(ZL, extent, vmax_fixed, KDE_COLORSCALE, show_scale=False)
+    hmR = heatmap_trace(ZR, extent, vmax_fixed, KDE_COLORSCALE, show_scale=True, colorbar_x=1.03)
 
     if hmL is not None:
         fig_cmp.add_trace(hmL, row=1, col=1)
@@ -756,18 +716,11 @@ def render_kde_section():
     else:
         fig_cmp.add_annotation(text=f"{int(year_right)}년<br>데이터 없음", x=0.78, y=0.5, xref="paper", yref="paper", showarrow=False)
 
-    bdL = make_boundary_traces(b3857)
-    bdR = make_boundary_traces(b3857)
-
-    fig_cmp.add_trace(bdL, row=1, col=1)
-    fig_cmp.add_trace(bdR, row=1, col=2)
-
-    labL = make_label_trace(b3857, mode=mode, year=int(year_left))
-    labR = make_label_trace(b3857, mode=mode, year=int(year_right))
-
-    fig_cmp.add_trace(labL, row=1, col=1)
-    fig_cmp.add_trace(labR, row=1, col=2)
-    
+    # 경계선 + 라벨
+    fig_cmp.add_trace(make_boundary_traces(b3857), row=1, col=1)
+    fig_cmp.add_trace(make_boundary_traces(b3857), row=1, col=2)
+    fig_cmp.add_trace(make_label_trace(b3857, year=int(year_left)), row=1, col=1)
+    fig_cmp.add_trace(make_label_trace(b3857, year=int(year_right)), row=1, col=2)
 
     # 줌 연동
     fig_cmp.update_xaxes(matches="x", row=1, col=2)
@@ -782,7 +735,7 @@ def render_kde_section():
                          scaleanchor="x2", scaleratio=1, row=1, col=2)
 
     fig_cmp.update_layout(
-        height=420,
+        height=430,
         margin=dict(l=10, r=10, t=55, b=10),
     )
 
@@ -791,20 +744,16 @@ def render_kde_section():
         width="stretch",
         config={
             "scrollZoom": True,
-            "displayModeBar": "hover",  # ✅ 항상 표시 X
+            "displayModeBar": "hover",
         },
     )
 
+    # -----------------------------------------------------
+    # (B) 변화: 2019→2025 흐름(Play)
+    # -----------------------------------------------------
     st.divider()
-
-    # -----------------------------------------------------
-    # (B) 거래 금액 가중 KDE의 변화
-    #  - Streamlit 컨트롤(Play/연도/속도) 유지
-    #  - Plotly 내부 슬라이더/버튼 제거(차트 위 슬라이더 제거)
-    #  - 모드바 hover로 변경
-    # -----------------------------------------------------
-    st.header("거래 금액 가중 KDE의 변화")
-    st.caption(make_condition_text_simple(mode=mode, value_label=value_label, bw=float(bw)))
+    st.subheader("권역이 만들어지는 7년의 흐름")
+    st.caption("▶︎ Play를 누르면, 자본이 어디로 모여 ‘굳어지는지’를 한 번에 볼 수 있습니다.")
 
     # ---- state init
     if "kde_playing" not in st.session_state:
@@ -814,7 +763,6 @@ def render_kde_section():
     if "kde_speed" not in st.session_state:
         st.session_state.kde_speed = 0.25
 
-    # ---- controls (예전처럼: Play / 연도 / 속도)
     ctrl1, ctrl2, ctrl3 = st.columns([1.0, 2.2, 2.2], vertical_alignment="center")
 
     with ctrl1:
@@ -850,56 +798,61 @@ def render_kde_section():
         )
         st.session_state.kde_speed = float(speed_sec)
 
+    # ✅ 연도 상태 문장 (차트 위)
+    cur_year = int(st.session_state.kde_year_cur)
+    phase_text = _phase_label_for_year(cur_year)
+    if phase_text:
+        st.markdown(
+            f"<div style='margin-top:0.25rem; margin-bottom:0.5rem; color:#111827;'>"
+            f"<b>{cur_year}년</b> · <span style='color:#6B7280'>{phase_text}</span>"
+            f"</div>",
+            unsafe_allow_html=True,
+        )
+
     chart_slot = st.empty()
 
     def make_single_year_fig(year: int):
         Zy = Z_by_year.get(int(year))
-
         fig = go.Figure()
 
-        hm = heatmap_trace(Zy, extent, vmax_fixed, colorscale, show_scale=True, colorbar_x=1.03)
+        hm = heatmap_trace(Zy, extent, vmax_fixed, KDE_COLORSCALE, show_scale=True, colorbar_x=1.03)
         if hm is not None:
             fig.add_trace(hm)
         else:
             fig.add_annotation(text=f"{int(year)}년<br>데이터 없음", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False)
 
         fig.add_trace(make_boundary_traces(b3857))
-
-        lab = make_label_trace(b3857, mode=mode, year=int(year))
-        fig.add_trace(lab)
-
+        fig.add_trace(make_label_trace(b3857, year=int(year)))
 
         fig.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False)
         fig.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
 
         fig.update_layout(
-            height=520,
-            margin=dict(l=10, r=10, t=45, b=10),
-            title=dict(text=f"{int(year)}년", x=0.5),
+            height=560,
+            margin=dict(l=10, r=10, t=25, b=10),
         )
         return fig
 
-    # ---- render current
     chart_slot.plotly_chart(
-        make_single_year_fig(int(st.session_state.kde_year_cur)),
+        make_single_year_fig(cur_year),
         width="stretch",
         config={
             "scrollZoom": True,
-            "displayModeBar": "hover",  # ✅ 항상 표시 X
+            "displayModeBar": "hover",
         },
     )
 
-    # ---- play loop (Streamlit rerun)
+    # ---- play loop
     if st.session_state.kde_playing:
         time.sleep(float(st.session_state.kde_speed))
 
-        cur = int(st.session_state.kde_year_cur)
-        if cur < 2025:
-            st.session_state.kde_year_cur = cur + 1
+        if cur_year < 2025:
+            st.session_state.kde_year_cur = cur_year + 1
         else:
             st.session_state.kde_playing = False
 
         st.rerun()
+
 
 
 # =========================================================
