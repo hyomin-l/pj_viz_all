@@ -588,7 +588,7 @@ def make_label_trace(b3857: gpd.GeoDataFrame, year: int | None):
         mode="text",
         text=b["gu"],
         textposition="middle center",
-        textfont=dict(size=11, color=colors),
+        textfont=dict(size=10, color=colors),
         hoverinfo="skip",
         showlegend=False,
     )
@@ -605,8 +605,8 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
 
     # ✅ 발표용 컬러바: 숫자보다 “의미”를 먼저 보이게
     cb = dict(
-        thickness=18,
-        len=0.70,
+        thickness=16,
+        len=0.55,
         x=colorbar_x,
         y=0.5,
         tickfont=dict(size=10, color="#4B5563"),
@@ -694,90 +694,7 @@ def render_kde_section():
     xmin, xmax, ymin, ymax = extent
 
     # -----------------------------------------------------
-    # (A) 비교: "각 연도 vs 2025(고정)"
-    # -----------------------------------------------------
-    st.divider()
-    st.subheader("돈의 무게중심은 어디로 이동했나")
-
-    # ✅ caption 대신 검은색 텍스트로
-    st.markdown(
-        "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
-        "2025년을 기준 시점으로 고정하고, 과거의 ‘점’이 어떻게 ‘권역’이 되었는지 비교합니다."
-        "</div>",
-        unsafe_allow_html=True,
-    )
-
-    # ✅ 비교 연도 선택 라디오를 wrapper로 감싸서 “이 라디오만” CSS 적용
-    st.markdown("<div id='kde-compare-radio'>", unsafe_allow_html=True)
-    year_left = st.radio(
-        "비교 연도 선택",
-        options=[2019, 2021, 2023],
-        horizontal=True,
-        key="kde_compare_left_year_radio",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    # ✅ 2025는 화면에 표시하지 않고 내부 기준값으로만 고정
-    year_right = 2025
-
-    st.info(_compare_narrative_for_year(int(year_left)))
-
-    ZL = Z_by_year.get(int(year_left))
-    ZR = Z_by_year.get(int(year_right))
-
-    fig_cmp = make_subplots(
-        rows=1, cols=2,
-        horizontal_spacing=0.03,
-        subplot_titles=(f"{int(year_left)}년", f"{int(year_right)}년"),
-    )
-
-    hmL = heatmap_trace(ZL, extent, vmax_fixed, KDE_COLORSCALE, show_scale=False)
-    hmR = heatmap_trace(ZR, extent, vmax_fixed, KDE_COLORSCALE, show_scale=True, colorbar_x=1.03)
-
-    if hmL is not None:
-        fig_cmp.add_trace(hmL, row=1, col=1)
-    else:
-        fig_cmp.add_annotation(text=f"{int(year_left)}년<br>데이터 없음", x=0.22, y=0.5, xref="paper", yref="paper", showarrow=False)
-
-    if hmR is not None:
-        fig_cmp.add_trace(hmR, row=1, col=2)
-    else:
-        fig_cmp.add_annotation(text=f"{int(year_right)}년<br>데이터 없음", x=0.78, y=0.5, xref="paper", yref="paper", showarrow=False)
-
-    # 경계선 + 라벨
-    fig_cmp.add_trace(make_boundary_traces(b3857), row=1, col=1)
-    fig_cmp.add_trace(make_boundary_traces(b3857), row=1, col=2)
-    fig_cmp.add_trace(make_label_trace(b3857, year=int(year_left)), row=1, col=1)
-    fig_cmp.add_trace(make_label_trace(b3857, year=int(year_right)), row=1, col=2)
-
-    # 줌 연동
-    fig_cmp.update_xaxes(matches="x", row=1, col=2)
-    fig_cmp.update_yaxes(matches="y", row=1, col=2)
-
-    # range 고정
-    fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=1, col=1)
-    fig_cmp.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False,
-                         scaleanchor="x", scaleratio=1, row=1, col=1)
-    fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=1, col=2)
-    fig_cmp.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False,
-                         scaleanchor="x2", scaleratio=1, row=1, col=2)
-
-    fig_cmp.update_layout(
-        height=430,
-        margin=dict(l=10, r=10, t=55, b=10),
-    )
-
-    st.plotly_chart(
-        fig_cmp,
-        width="stretch",
-        config={
-            "scrollZoom": True,
-            "displayModeBar": "hover",
-        },
-    )
-
-    # -----------------------------------------------------
-    # (B) 변화: 2019→2025 흐름(Play)
+    # (A) 변화: 2019→2025 흐름(Play)
     # -----------------------------------------------------
     st.divider()
     st.subheader("권역이 만들어지는 7년의 흐름")
@@ -785,7 +702,7 @@ def render_kde_section():
     # ✅ caption 대신 검은색 텍스트로
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
-        "▶︎ Play를 누르면, 자본이 어디로 모여 ‘굳어지는지’를 한 번에 볼 수 있습니다."
+        "▶︎ 버튼을 누르면, 자본이 어디로 모여 ‘굳어지는지’ 시간의 흐름에 따라 볼 수 있습니다."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -796,7 +713,8 @@ def render_kde_section():
     if "kde_year_cur" not in st.session_state:
         st.session_state.kde_year_cur = 2019
     if "kde_speed" not in st.session_state:
-        st.session_state.kde_speed = 0.25
+        st.session_state.kde_speed = 0.5
+
 
     ctrl1, ctrl2, ctrl3 = st.columns([1.0, 2.2, 2.2], vertical_alignment="center")
 
@@ -823,37 +741,23 @@ def render_kde_section():
             st.session_state.kde_year_cur = int(year_slider)
 
     with ctrl3:
-        # ✅ 재생 속도: 3단 고정 + 슬라이더 값 표시를 라벨로
-        SPEED_VALUES = [0.5, 1.0, 2.0]  # (초)
-        SPEED_LABELS = {0.5: "빠르게", 1.0: "보통", 2.0: "느리게"}
+        SPEED_OPTIONS = [0.05, 0.5, 1.0, 2.0]
 
-        # 현재 세션 값이 3단 중 하나가 아니면, 가장 가까운 값으로 스냅
-        cur = float(st.session_state.kde_speed)
-        if cur not in SPEED_VALUES:
-            st.session_state.kde_speed = min(SPEED_VALUES, key=lambda v: abs(v - cur))
+        # ✅ 세션에 이상한 값(예: 0.25, 2.5)이 들어있으면 가장 가까운 옵션으로 스냅
+        cur = float(st.session_state.get("kde_speed", 0.5))
+        nearest = min(SPEED_OPTIONS, key=lambda v: abs(v - cur))
 
-        speed_sec = st.slider(
-            "재생 속도",
-            min_value=min(SPEED_VALUES),
-            max_value=max(SPEED_VALUES),
-            value=float(st.session_state.kde_speed),
-            step=None,  # 연속 슬라이더로 두되 format으로 '라벨'만 보이게 처리
-            format="%s",
+        speed_sec = st.select_slider(
+            "재생 속도(초)",
+            options=SPEED_OPTIONS,
+            value=nearest,
             key="kde_speed_streamlit",
         )
 
-        # Streamlit slider가 반환하는 float를 3단으로 스냅(안정성)
-        snapped = min(SPEED_VALUES, key=lambda v: abs(v - float(speed_sec)))
-        st.session_state.kde_speed = float(snapped)
+        st.session_state.kde_speed = float(speed_sec)
+  
 
-        # ✅ 값 표시는 숫자 대신 라벨로 보여주기 (format은 숫자를 못 바꾸는 케이스가 많아서 별도 표시)
-        #    -> 슬라이더 아래에 라벨만 한 줄로 보여주면 UI가 깔끔해짐
-        st.markdown(
-            f"<div style='margin-top:-0.25rem; color:#EF4444; font-weight:600;'>"
-            f"{SPEED_LABELS[float(st.session_state.kde_speed)]}"
-            f"</div>",
-            unsafe_allow_html=True,
-        )
+    st.markdown("<div style='height: 0.25rem;'></div>", unsafe_allow_html=True)
 
 
     # ✅ 연도 상태 문장 (차트 위)
@@ -886,8 +790,8 @@ def render_kde_section():
         fig.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
 
         fig.update_layout(
-            height=560,
-            margin=dict(l=10, r=10, t=25, b=10),
+            height=420,
+            margin=dict(l=6, r=6, t=8, b=6),
         )
         return fig
 
@@ -910,6 +814,106 @@ def render_kde_section():
             st.session_state.kde_playing = False
 
         st.rerun()
+
+
+
+     # -----------------------------------------------------
+    # (B) 비교: 2x2 고정 4패널 (2019/2021/2023/2025)
+    # -----------------------------------------------------
+    st.divider()
+    st.subheader("돈의 무게중심은 어디로 이동했나")
+
+    st.markdown(
+        "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
+        "핵심 4개 연도(2019·2021·2023·2025)를 같은 스케일로 한 화면에 배치해, "
+        "‘점(Point) → 권역(Zone)’으로 굳어지는 과정을 한 번에 봅니다."
+        "</div>",
+        unsafe_allow_html=True,
+    )
+
+    # ✅ 고정 4개 연도
+    years_cmp = [2019, 2021, 2023, 2025]
+
+    # ✅ 2x2 서브플롯
+    fig_cmp = make_subplots(
+        rows=2, cols=2,
+        horizontal_spacing=0.02,
+        vertical_spacing=0.06,
+        subplot_titles=(
+            f"{years_cmp[0]}년 · {_phase_label_for_year(years_cmp[0])}",
+            f"{years_cmp[1]}년 · {_phase_label_for_year(years_cmp[1])}",
+            f"{years_cmp[2]}년 · {_phase_label_for_year(years_cmp[2])}",
+            f"{years_cmp[3]}년 · {_phase_label_for_year(years_cmp[3])}",
+        ),
+    )
+
+    # (row, col) 매핑
+    rc_list = [(1, 1), (1, 2), (2, 1), (2, 2)]
+
+    # ✅ 4패널 렌더: 컬러바는 마지막(2025) 패널에만 표시
+    for (yr, (r, c)) in zip(years_cmp, rc_list):
+        Z = Z_by_year.get(int(yr))
+
+        show_scale = (yr == 2025)  # 2025에만 컬러바
+        cb_x = 1.02                # 오른쪽 바깥쪽(마지막 컬럼 기준)
+
+        hm = heatmap_trace(
+            Z, extent, vmax_fixed, KDE_COLORSCALE,
+            show_scale=show_scale,
+            colorbar_x=cb_x
+        )
+
+        if hm is not None:
+            fig_cmp.add_trace(hm, row=r, col=c)
+        else:
+            # 데이터 없을 때 안내 문구
+            fig_cmp.add_annotation(
+                text=f"{int(yr)}년<br>데이터 없음",
+                x=0.5, y=0.5,
+                xref=f"x{(r-1)*2+c} domain",
+                yref=f"y{(r-1)*2+c} domain",
+                showarrow=False,
+            )
+
+        # 경계선 + 라벨
+        fig_cmp.add_trace(make_boundary_traces(b3857), row=r, col=c)
+        fig_cmp.add_trace(make_label_trace(b3857, year=int(yr)), row=r, col=c)
+
+        # 각 패널 축 고정(비율 유지)
+        fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=r, col=c)
+        fig_cmp.update_yaxes(
+            range=[ymin, ymax],
+            visible=False,
+            showgrid=False,
+            zeroline=False,
+            scaleanchor=f"x{(r-1)*2+c}" if not (r == 1 and c == 1) else "x",
+            scaleratio=1,
+            row=r, col=c
+        )
+
+    # ✅ 줌 연동(한 패널 확대/이동하면 같이 움직이게)
+    # - 첫 패널(1,1)을 기준으로 나머지와 매칭
+    fig_cmp.update_xaxes(matches="x", row=1, col=2)
+    fig_cmp.update_yaxes(matches="y", row=1, col=2)
+    fig_cmp.update_xaxes(matches="x", row=2, col=1)
+    fig_cmp.update_yaxes(matches="y", row=2, col=1)
+    fig_cmp.update_xaxes(matches="x", row=2, col=2)
+    fig_cmp.update_yaxes(matches="y", row=2, col=2)
+
+    fig_cmp.update_layout(
+        height=560,  # 2x2라서 높이를 키워야 한 눈에 들어옴
+        margin=dict(l=6, r=6, t=48, b=6),
+    )
+
+    st.plotly_chart(
+        fig_cmp,
+        width="stretch",
+        config={
+            "scrollZoom": True,
+            "displayModeBar": "hover",
+        },
+    )
+
 
 
 

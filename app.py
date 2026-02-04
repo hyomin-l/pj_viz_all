@@ -588,7 +588,7 @@ def make_label_trace(b3857: gpd.GeoDataFrame, year: int | None):
         mode="text",
         text=b["gu"],
         textposition="middle center",
-        textfont=dict(size=11, color=colors),
+        textfont=dict(size=10, color=colors),
         hoverinfo="skip",
         showlegend=False,
     )
@@ -817,78 +817,92 @@ def render_kde_section():
 
 
 
-    # -----------------------------------------------------
-    # (B) 비교: "각 연도 vs 2025(고정)"
+     # -----------------------------------------------------
+    # (B) 비교: 2x2 고정 4패널 (2019/2021/2023/2025)
     # -----------------------------------------------------
     st.divider()
     st.subheader("돈의 무게중심은 어디로 이동했나")
 
-    # ✅ caption 대신 검은색 텍스트로
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
-        "2025년을 기준 시점으로 고정하고, 과거의 ‘점’이 어떻게 ‘권역’이 되었는지 비교합니다."
+        "핵심 4개 연도(2019·2021·2023·2025)를 같은 스케일로 한 화면에 배치해, "
+        "‘점(Point) → 권역(Zone)’으로 굳어지는 과정을 한 번에 봅니다."
         "</div>",
         unsafe_allow_html=True,
     )
 
-    # ✅ 비교 연도 선택 라디오를 wrapper로 감싸서 “이 라디오만” CSS 적용
-    st.markdown("<div id='kde-compare-radio'>", unsafe_allow_html=True)
-    year_left = st.radio(
-        "비교 연도 선택",
-        options=[2019, 2021, 2023],
-        horizontal=True,
-        key="kde_compare_left_year_radio",
-    )
-    st.markdown("</div>", unsafe_allow_html=True)
+    # ✅ 고정 4개 연도
+    years_cmp = [2019, 2021, 2023, 2025]
 
-    # ✅ 2025는 화면에 표시하지 않고 내부 기준값으로만 고정
-    year_right = 2025
-
-    st.info(_compare_narrative_for_year(int(year_left)))
-
-    ZL = Z_by_year.get(int(year_left))
-    ZR = Z_by_year.get(int(year_right))
-
+    # ✅ 2x2 서브플롯
     fig_cmp = make_subplots(
-        rows=1, cols=2,
-        horizontal_spacing=0.03,
-        subplot_titles=(f"{int(year_left)}년", f"{int(year_right)}년"),
+        rows=2, cols=2,
+        horizontal_spacing=0.02,
+        vertical_spacing=0.06,
+        subplot_titles=(
+            f"{years_cmp[0]}년 · {_phase_label_for_year(years_cmp[0])}",
+            f"{years_cmp[1]}년 · {_phase_label_for_year(years_cmp[1])}",
+            f"{years_cmp[2]}년 · {_phase_label_for_year(years_cmp[2])}",
+            f"{years_cmp[3]}년 · {_phase_label_for_year(years_cmp[3])}",
+        ),
     )
 
-    hmL = heatmap_trace(ZL, extent, vmax_fixed, KDE_COLORSCALE, show_scale=False)
-    hmR = heatmap_trace(ZR, extent, vmax_fixed, KDE_COLORSCALE, show_scale=True, colorbar_x=1.03)
+    # (row, col) 매핑
+    rc_list = [(1, 1), (1, 2), (2, 1), (2, 2)]
 
-    if hmL is not None:
-        fig_cmp.add_trace(hmL, row=1, col=1)
-    else:
-        fig_cmp.add_annotation(text=f"{int(year_left)}년<br>데이터 없음", x=0.22, y=0.5, xref="paper", yref="paper", showarrow=False)
+    # ✅ 4패널 렌더: 컬러바는 마지막(2025) 패널에만 표시
+    for (yr, (r, c)) in zip(years_cmp, rc_list):
+        Z = Z_by_year.get(int(yr))
 
-    if hmR is not None:
-        fig_cmp.add_trace(hmR, row=1, col=2)
-    else:
-        fig_cmp.add_annotation(text=f"{int(year_right)}년<br>데이터 없음", x=0.78, y=0.5, xref="paper", yref="paper", showarrow=False)
+        show_scale = (yr == 2025)  # 2025에만 컬러바
+        cb_x = 1.02                # 오른쪽 바깥쪽(마지막 컬럼 기준)
 
-    # 경계선 + 라벨
-    fig_cmp.add_trace(make_boundary_traces(b3857), row=1, col=1)
-    fig_cmp.add_trace(make_boundary_traces(b3857), row=1, col=2)
-    fig_cmp.add_trace(make_label_trace(b3857, year=int(year_left)), row=1, col=1)
-    fig_cmp.add_trace(make_label_trace(b3857, year=int(year_right)), row=1, col=2)
+        hm = heatmap_trace(
+            Z, extent, vmax_fixed, KDE_COLORSCALE,
+            show_scale=show_scale,
+            colorbar_x=cb_x
+        )
 
-    # 줌 연동
+        if hm is not None:
+            fig_cmp.add_trace(hm, row=r, col=c)
+        else:
+            # 데이터 없을 때 안내 문구
+            fig_cmp.add_annotation(
+                text=f"{int(yr)}년<br>데이터 없음",
+                x=0.5, y=0.5,
+                xref=f"x{(r-1)*2+c} domain",
+                yref=f"y{(r-1)*2+c} domain",
+                showarrow=False,
+            )
+
+        # 경계선 + 라벨
+        fig_cmp.add_trace(make_boundary_traces(b3857), row=r, col=c)
+        fig_cmp.add_trace(make_label_trace(b3857, year=int(yr)), row=r, col=c)
+
+        # 각 패널 축 고정(비율 유지)
+        fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=r, col=c)
+        fig_cmp.update_yaxes(
+            range=[ymin, ymax],
+            visible=False,
+            showgrid=False,
+            zeroline=False,
+            scaleanchor=f"x{(r-1)*2+c}" if not (r == 1 and c == 1) else "x",
+            scaleratio=1,
+            row=r, col=c
+        )
+
+    # ✅ 줌 연동(한 패널 확대/이동하면 같이 움직이게)
+    # - 첫 패널(1,1)을 기준으로 나머지와 매칭
     fig_cmp.update_xaxes(matches="x", row=1, col=2)
     fig_cmp.update_yaxes(matches="y", row=1, col=2)
-
-    # range 고정
-    fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=1, col=1)
-    fig_cmp.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False,
-                         scaleanchor="x", scaleratio=1, row=1, col=1)
-    fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=1, col=2)
-    fig_cmp.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False,
-                         scaleanchor="x2", scaleratio=1, row=1, col=2)
+    fig_cmp.update_xaxes(matches="x", row=2, col=1)
+    fig_cmp.update_yaxes(matches="y", row=2, col=1)
+    fig_cmp.update_xaxes(matches="x", row=2, col=2)
+    fig_cmp.update_yaxes(matches="y", row=2, col=2)
 
     fig_cmp.update_layout(
-        height=430,
-        margin=dict(l=10, r=10, t=55, b=10),
+        height=560,  # 2x2라서 높이를 키워야 한 눈에 들어옴
+        margin=dict(l=6, r=6, t=48, b=6),
     )
 
     st.plotly_chart(
@@ -899,6 +913,7 @@ def render_kde_section():
             "displayModeBar": "hover",
         },
     )
+
 
 
 
