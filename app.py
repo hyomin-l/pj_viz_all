@@ -27,11 +27,12 @@ from plotly.subplots import make_subplots
 # =========================================================
 # 0) Streamlit 기본 설정 (한 번만)
 # =========================================================
-st.set_page_config(layout="wide", page_title="통합 시각화 (Scatter + KDE)")
+st.set_page_config(layout="wide", page_title="똘똘한 집 한 채")
 
 
 # =========================================================
 # 1) 레이아웃: [코드2] 스타일을 전체 페이지에 적용
+#  - (추가) selectbox/slider 높이/여백을 "무겁지 않게" 약간만 정리
 # =========================================================
 st.markdown(
     """
@@ -39,6 +40,7 @@ st.markdown(
       [data-testid="stSidebar"] { display: none; }
       section.main { margin-left: 0 !important; }
       header[data-testid="stHeader"] { height: 0.5rem; }
+
       .block-container {
         max-width: 1100px;
         padding-left: 2.6rem;
@@ -46,6 +48,17 @@ st.markdown(
         padding-top: 3.0rem;
         padding-bottom: 2.2rem;
         margin: 0 auto;
+      }
+
+      /* --- UI 리듬(8pt) 보정: 너무 큰 selectbox/slider를 살짝만 정리 --- */
+      div[data-testid="stSelectbox"] > div,
+      div[data-testid="stSlider"] > div {
+        margin-top: 0.25rem;
+      }
+      div[data-testid="stSelectbox"] label,
+      div[data-testid="stSlider"] label {
+        font-size: 0.85rem;
+        color: #6B7280; /* gray-500 */
       }
     </style>
     """,
@@ -526,7 +539,7 @@ def compute_Z_all_years_cached(tx_df: pd.DataFrame, geojson_url: str, years: lis
 
 
 # =========================
-# Plotly 렌더 유틸: 경계선 + 라벨(중첩 방지)
+# Plotly 렌더 유틸: 경계선 + 라벨(가독성 안정화: halo)
 # =========================
 def make_boundary_traces(b3857: gpd.GeoDataFrame):
     xs, ys = [], []
@@ -544,24 +557,18 @@ def make_boundary_traces(b3857: gpd.GeoDataFrame):
             xs += list(x) + [None]
             ys += list(y) + [None]
 
+    # ✅ 히트맵(레드)과 의미 충돌 방지: 중립 회색 경계선
     return go.Scatter(
         x=xs, y=ys,
         mode="lines",
-        line=dict(width=1),
-        opacity=0.55,
+        line=dict(width=1, color="#CBD5E1"),  # slate-300
+        opacity=0.7,
         hoverinfo="skip",
         showlegend=False,
     )
 
 
-def make_label_trace(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
-    if "cx" not in b3857.columns or "cy" not in b3857.columns:
-        b = b3857.copy()
-        b["cx"] = b.geometry.centroid.x
-        b["cy"] = b.geometry.centroid.y
-    else:
-        b = b3857
-
+def _label_colors_for_mode(b: gpd.GeoDataFrame, mode: str, year: int | None):
     if mode == "top_pct":
         black_set = {"용산구", "강남구", "서초구", "송파구"}
         colors = []
@@ -570,19 +577,52 @@ def make_label_trace(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
             if year is not None and (int(year) == 2019 and gu == "강남구"):
                 c = "white"
             colors.append(c)
-    else:
-        colors = ["black"] * len(b)
+        return colors
+    return ["black"] * len(b)
 
-    return go.Scatter(
+
+def make_label_traces_with_halo(b3857: gpd.GeoDataFrame, mode: str, year: int | None):
+    """
+    Plotly는 text stroke(외곽선)가 직접 지원이 약해서
+    ✅ 동일 텍스트를 2개 trace로 겹쳐 halo 효과를 만든다.
+      - 아래(halo): 검정/흰색(대비용), 큰 글자
+      - 위(본문): 원래 색, 작은 글자
+    """
+    if "cx" not in b3857.columns or "cy" not in b3857.columns:
+        b = b3857.copy()
+        b["cx"] = b.geometry.centroid.x
+        b["cy"] = b.geometry.centroid.y
+    else:
+        b = b3857
+
+    main_colors = _label_colors_for_mode(b, mode, year)
+
+    # halo 색: 본문이 white면 black halo, 본문이 black이면 white halo
+    halo_colors = [("black" if c == "white" else "white") for c in main_colors]
+
+    halo = go.Scatter(
         x=b["cx"],
         y=b["cy"],
         mode="text",
         text=b["gu"],
         textposition="middle center",
-        textfont=dict(size=11, color=colors),
+        textfont=dict(size=14, color=halo_colors),  # halo: 조금 크게
         hoverinfo="skip",
         showlegend=False,
     )
+
+    main = go.Scatter(
+        x=b["cx"],
+        y=b["cy"],
+        mode="text",
+        text=b["gu"],
+        textposition="middle center",
+        textfont=dict(size=11, color=main_colors),  # main: 원래 크기
+        hoverinfo="skip",
+        showlegend=False,
+    )
+
+    return halo, main
 
 
 def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
@@ -594,14 +634,15 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
     x = np.linspace(xmin, xmax, nx)
     y = np.linspace(ymin, ymax, ny)
 
-    # ✅ 범례(컬러바) "조금 더 크게" (요청 반영)
+    # ✅ 범례(컬러바) 더 키우기 + 타이틀/틱 가독성 상승
+    #    plotly 호환: title은 dict로( titlefont 금지 )
     cb = dict(
-        thickness=18,       # <-- 14 -> 18
-        len=0.66,           # <-- 0.58 -> 0.66
+        thickness=18,
+        len=0.68,
         x=colorbar_x,
         y=0.5,
-        tickfont=dict(size=11),
-        title="Value-weighted KDE",
+        tickfont=dict(size=11, color="#4B5563"),
+        title=dict(text="Value-weighted KDE", font=dict(size=12, color="#374151")),
     )
 
     return go.Heatmap(
@@ -694,11 +735,16 @@ def render_kde_section():
         top_pct=top_pct
     )
 
+    xmin, xmax, ymin, ymax = extent
+
     # -----------------------------------------------------
     # (A) 거래 금액 가중 KDE 비교
+    #  - 모드바는 hover에서만 표시(시각적 잡음 ↓)
+    #  - 안내 캡션 1줄 추가(줌 동기화 힌트)
     # -----------------------------------------------------
     st.header("거래 금액 가중 KDE 비교")
     st.caption(make_condition_text_simple(mode=mode, value_label=value_label, bw=float(bw)))
+    st.caption("두 지도는 줌/이동이 동기화됩니다. 한쪽만 조작해도 함께 움직여요.")
 
     colL, colR = st.columns([1, 1], vertical_alignment="top")
     with colL:
@@ -720,23 +766,30 @@ def render_kde_section():
 
     if hmL is not None:
         fig_cmp.add_trace(hmL, row=1, col=1)
+    else:
+        fig_cmp.add_annotation(text=f"{int(year_left)}년<br>데이터 없음", x=0.22, y=0.5, xref="paper", yref="paper", showarrow=False)
+
     if hmR is not None:
         fig_cmp.add_trace(hmR, row=1, col=2)
+    else:
+        fig_cmp.add_annotation(text=f"{int(year_right)}년<br>데이터 없음", x=0.78, y=0.5, xref="paper", yref="paper", showarrow=False)
 
     bd = make_boundary_traces(b3857)
-    labL = make_label_trace(b3857, mode=mode, year=int(year_left))
-    labR = make_label_trace(b3857, mode=mode, year=int(year_right))
+    haloL, mainL = make_label_traces_with_halo(b3857, mode=mode, year=int(year_left))
+    haloR, mainR = make_label_traces_with_halo(b3857, mode=mode, year=int(year_right))
 
     fig_cmp.add_trace(bd, row=1, col=1)
     fig_cmp.add_trace(bd, row=1, col=2)
-    fig_cmp.add_trace(labL, row=1, col=1)
-    fig_cmp.add_trace(labR, row=1, col=2)
+    fig_cmp.add_trace(haloL, row=1, col=1)
+    fig_cmp.add_trace(mainL, row=1, col=1)
+    fig_cmp.add_trace(haloR, row=1, col=2)
+    fig_cmp.add_trace(mainR, row=1, col=2)
 
     # 줌 연동
     fig_cmp.update_xaxes(matches="x", row=1, col=2)
     fig_cmp.update_yaxes(matches="y", row=1, col=2)
 
-    xmin, xmax, ymin, ymax = extent
+    # range 고정
     fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=1, col=1)
     fig_cmp.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False,
                          scaleanchor="x", scaleratio=1, row=1, col=1)
@@ -752,16 +805,19 @@ def render_kde_section():
     st.plotly_chart(
         fig_cmp,
         width="stretch",
-        config={"scrollZoom": True, "displayModeBar": True},
+        config={
+            "scrollZoom": True,
+            "displayModeBar": "hover",  # ✅ 항상 표시 X
+        },
     )
 
     st.divider()
 
     # -----------------------------------------------------
     # (B) 거래 금액 가중 KDE의 변화
-    # - Streamlit UI(차트 위 컨트롤)로 복구
-    # - Plotly 내부 슬라이더/버튼 제거
-    # - 끊김 완화: placeholder + 최소 rerun 루프
+    #  - Streamlit 컨트롤(Play/연도/속도) 유지
+    #  - Plotly 내부 슬라이더/버튼 제거(차트 위 슬라이더 제거)
+    #  - 모드바 hover로 변경
     # -----------------------------------------------------
     st.header("거래 금액 가중 KDE의 변화")
     st.caption(make_condition_text_simple(mode=mode, value_label=value_label, bw=float(bw)))
@@ -780,10 +836,10 @@ def render_kde_section():
     with ctrl1:
         c1a, c1b = st.columns(2)
         with c1a:
-            if st.button("▶ Play", width="stretch", key="kde_btn_play"):
+            if st.button("▶ Play", use_container_width=True, key="kde_btn_play"):
                 st.session_state.kde_playing = True
         with c1b:
-            if st.button("■ Pause", width="stretch", key="kde_btn_pause"):
+            if st.button("■ Pause", use_container_width=True, key="kde_btn_pause"):
                 st.session_state.kde_playing = False
 
     with ctrl2:
@@ -810,19 +866,24 @@ def render_kde_section():
         )
         st.session_state.kde_speed = float(speed_sec)
 
-    # ---- chart placeholder
     chart_slot = st.empty()
 
     def make_single_year_fig(year: int):
         Zy = Z_by_year.get(int(year))
+
         fig = go.Figure()
 
         hm = heatmap_trace(Zy, extent, vmax_fixed, colorscale, show_scale=True, colorbar_x=1.03)
         if hm is not None:
             fig.add_trace(hm)
+        else:
+            fig.add_annotation(text=f"{int(year)}년<br>데이터 없음", x=0.5, y=0.5, xref="paper", yref="paper", showarrow=False)
 
         fig.add_trace(make_boundary_traces(b3857))
-        fig.add_trace(make_label_trace(b3857, mode=mode, year=int(year)))
+
+        halo, main = make_label_traces_with_halo(b3857, mode=mode, year=int(year))
+        fig.add_trace(halo)
+        fig.add_trace(main)
 
         fig.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False)
         fig.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
@@ -838,7 +899,10 @@ def render_kde_section():
     chart_slot.plotly_chart(
         make_single_year_fig(int(st.session_state.kde_year_cur)),
         width="stretch",
-        config={"scrollZoom": True, "displayModeBar": True},
+        config={
+            "scrollZoom": True,
+            "displayModeBar": "hover",  # ✅ 항상 표시 X
+        },
     )
 
     # ---- play loop (Streamlit rerun)
