@@ -80,6 +80,13 @@ st.markdown(
       #kde-compare-radio input[type="radio"]:checked + div {
         color: #111827 !important; /* gray-900 */
       }
+
+      /* KDE 4-panel: always show 1x4 */
+      .kde-wide { display: block !important; 
+      }
+
+      /*
+
     </style>
     """,
     unsafe_allow_html=True,
@@ -817,8 +824,8 @@ def render_kde_section():
 
 
 
-     # -----------------------------------------------------
-    # (B) 비교: 2x2 고정 4패널 (2019/2021/2023/2025)
+    # -----------------------------------------------------
+    # (B) 비교: 넓으면 1x4, 좁으면 2x2 (자동 전환)
     # -----------------------------------------------------
     st.divider()
     st.subheader("돈의 무게중심은 어디로 이동했나")
@@ -831,87 +838,71 @@ def render_kde_section():
         unsafe_allow_html=True,
     )
 
-    # ✅ 고정 4개 연도
     years_cmp = [2019, 2021, 2023, 2025]
 
-    # ✅ 2x2 서브플롯
-    fig_cmp = make_subplots(
-        rows=2, cols=2,
+    # ---------- 1x4 (wide) ----------
+    fig_wide = make_subplots(
+        rows=1, cols=4,
         horizontal_spacing=0.02,
-        vertical_spacing=0.06,
-        subplot_titles=(
-            f"{years_cmp[0]}년 · {_phase_label_for_year(years_cmp[0])}",
-            f"{years_cmp[1]}년 · {_phase_label_for_year(years_cmp[1])}",
-            f"{years_cmp[2]}년 · {_phase_label_for_year(years_cmp[2])}",
-            f"{years_cmp[3]}년 · {_phase_label_for_year(years_cmp[3])}",
+        subplot_titles=tuple(
+            f"{y}년<br>{_phase_label_for_year(y)}" for y in years_cmp
         ),
     )
 
-    # (row, col) 매핑
-    rc_list = [(1, 1), (1, 2), (2, 1), (2, 2)]
+    for a in fig_wide.layout.annotations:
+        a.update(xanchor="center", align="center")
+        a.font.size = 12
 
-    # ✅ 4패널 렌더: 컬러바는 마지막(2025) 패널에만 표시
-    for (yr, (r, c)) in zip(years_cmp, rc_list):
+    for i, yr in enumerate(years_cmp, start=1):
         Z = Z_by_year.get(int(yr))
-
-        show_scale = (yr == 2025)  # 2025에만 컬러바
-        cb_x = 1.02                # 오른쪽 바깥쪽(마지막 컬럼 기준)
+        show_scale = (yr == 2025)
 
         hm = heatmap_trace(
             Z, extent, vmax_fixed, KDE_COLORSCALE,
             show_scale=show_scale,
-            colorbar_x=cb_x
+            colorbar_x=1.02
         )
 
         if hm is not None:
-            fig_cmp.add_trace(hm, row=r, col=c)
+            fig_wide.add_trace(hm, row=1, col=i)
         else:
-            # 데이터 없을 때 안내 문구
-            fig_cmp.add_annotation(
+            fig_wide.add_annotation(
                 text=f"{int(yr)}년<br>데이터 없음",
                 x=0.5, y=0.5,
-                xref=f"x{(r-1)*2+c} domain",
-                yref=f"y{(r-1)*2+c} domain",
+                xref=f"x{i} domain",
+                yref=f"y{i} domain",
                 showarrow=False,
             )
 
-        # 경계선 + 라벨
-        fig_cmp.add_trace(make_boundary_traces(b3857), row=r, col=c)
-        fig_cmp.add_trace(make_label_trace(b3857, year=int(yr)), row=r, col=c)
+        fig_wide.add_trace(make_boundary_traces(b3857), row=1, col=i)
+        fig_wide.add_trace(make_label_trace(b3857, year=int(yr)), row=1, col=i)
 
-        # 각 패널 축 고정(비율 유지)
-        fig_cmp.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=r, col=c)
-        fig_cmp.update_yaxes(
+        fig_wide.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False, row=1, col=i)
+        fig_wide.update_yaxes(
             range=[ymin, ymax],
             visible=False,
             showgrid=False,
             zeroline=False,
-            scaleanchor=f"x{(r-1)*2+c}" if not (r == 1 and c == 1) else "x",
+            scaleanchor=f"x{i}" if i != 1 else "x",
             scaleratio=1,
-            row=r, col=c
+            row=1, col=i
         )
 
-    # ✅ 줌 연동(한 패널 확대/이동하면 같이 움직이게)
-    # - 첫 패널(1,1)을 기준으로 나머지와 매칭
-    fig_cmp.update_xaxes(matches="x", row=1, col=2)
-    fig_cmp.update_yaxes(matches="y", row=1, col=2)
-    fig_cmp.update_xaxes(matches="x", row=2, col=1)
-    fig_cmp.update_yaxes(matches="y", row=2, col=1)
-    fig_cmp.update_xaxes(matches="x", row=2, col=2)
-    fig_cmp.update_yaxes(matches="y", row=2, col=2)
+    # 줌 연동(1x4)
+    for i in [2, 3, 4]:
+        fig_wide.update_xaxes(matches="x", row=1, col=i)
+        fig_wide.update_yaxes(matches="y", row=1, col=i)
 
-    fig_cmp.update_layout(
-        height=560,  # 2x2라서 높이를 키워야 한 눈에 들어옴
+    fig_wide.update_layout(
+        height=380,
         margin=dict(l=6, r=6, t=48, b=6),
     )
 
+    # ---------- (3) 1x4만 렌더 ----------
     st.plotly_chart(
-        fig_cmp,
+        fig_wide,
         width="stretch",
-        config={
-            "scrollZoom": True,
-            "displayModeBar": "hover",
-        },
+        config={"scrollZoom": True, "displayModeBar": "hover"},
     )
 
 
