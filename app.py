@@ -362,7 +362,7 @@ def render_scatter_section():
 #   - "옵션" 제거 (하나의 강한 관점 고정)
 #   - 비교: (과거 연도) vs (2025 고정)
 #   - 변화: Play/연도/속도 + "해석 가이드" + 연도별 상태 문장
-#   - 컬러바: 숫자 중심 → 해석 중심(자본 밀도)
+#   - 컬러바: 숫자 중심 → 해석 중심(고가 거래 밀도)
 # =========================================================
 CSV_PATH_DEFAULT = "아파트실거래가2015_2025.csv"
 GEOJSON_URL_DEFAULT = (
@@ -617,7 +617,7 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
         x=colorbar_x,
         y=0.5,
         tickfont=dict(size=10, color="#4B5563"),
-        title=dict(text="자본 밀도", font=dict(size=12, color="#111827")),
+        title=dict(text="고가 거래 밀도", font=dict(size=12, color="#111827")),
     )
 
     return go.Heatmap(
@@ -629,13 +629,13 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
         zmax=float(vmax),
         showscale=bool(show_scale),
         colorbar=cb if show_scale else None,
-        hovertemplate="자본 밀도=%{z:.3g}<extra></extra>",
+        hovertemplate="고가 거래 밀도=%{z:.3g}<extra></extra>",
     )
 
 
 def _condition_caption():
     # ✅ 발표용: 방법을 짧고 자연스럽게 설명
-    return f"상위 10% 거래에 대해 {KDE_VALUE_LABEL_FIXED}을 기준으로 계산한 KDE(Kernel Density Estimation) 지도"
+    return f"각 연도별로 평당 거래가격 상위 10% 거래를 선택해, 구별 평당가격 합을 가중치로 해 점을 생성한 뒤 KDE로 공간 밀도를 추정했습니다."
 
 
 def _compare_narrative_for_year(y: int) -> str:
@@ -666,7 +666,7 @@ def _phase_label_for_year(y: int) -> str:
 # 5) KDE 섹션 (발표/시연용)
 # =========================================================
 def render_kde_section():
-    st.header("거래 금액으로 본 자본의 무게중심 지도")
+    st.header("고가 거래의 밀도로 본 돈의 무게중심")
     st.caption(_condition_caption())
 
     path_tx = CSV_PATH_DEFAULT
@@ -704,12 +704,12 @@ def render_kde_section():
     # (A) 변화: 2019→2025 흐름(Play)
     # -----------------------------------------------------
     st.divider()
-    st.subheader("권역이 만들어지는 7년의 흐름")
+    st.subheader("핵심 권역이 만들어지는 7년의 흐름")
 
     # ✅ caption 대신 검은색 텍스트로
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
-        "▶︎ 버튼을 누르면, 자본이 어디로 모여 ‘굳어지는지’ 시간의 흐름에 따라 볼 수 있습니다."
+        "▶︎ 버튼을 누르면, 시간의 흐름에 따라 고가 거래 밀도가 변화하는 모습을 볼 수 있습니다."
         "</div>",
         unsafe_allow_html=True,
     )
@@ -832,8 +832,8 @@ def render_kde_section():
 
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
-        "핵심 4개 연도(2019·2021·2023·2025)를 같은 스케일로 한 화면에 배치해, "
-        "‘점(Point) → 권역(Zone)’으로 굳어지는 과정을 한 번에 봅니다."
+        "2019·2021·2023·2025를 같은 스케일로 비교해"
+        "‘점(Point) → 권역(Zone)’으로의 변화를 확인합니다."
         "</div>",
         unsafe_allow_html=True,
     )
