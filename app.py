@@ -390,7 +390,7 @@ def render_scatter_section():
             color_map = {"전체": "#4C78A8"}
         else:
             g = int(grade_opt.replace("급지", ""))
-            color_map = {f"{g}급지": "#E45756", "기타": "#4C78A8"}
+            color_map = {f"{g}급지": "#E45756", "기타": "#8EC7E8"}
 
         fig = px.scatter(
             df_plot,
