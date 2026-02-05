@@ -110,31 +110,30 @@ st.markdown(
       /* KDE 4-panel: always show 1x4 */
       .kde-wide { display: block !important; }
 
-     /* ✅ 앵커 이동 보정: Streamlit 상단바(Deploy bar)에 안 가리도록 충분히 위로 */
-     .anchor-pad { 
+      /* ✅ 앵커 이동 보정: Streamlit 상단바(Deploy bar)에 안 가리도록 충분히 위로 */
+      .anchor-pad { 
         position: relative; 
         top: -84px;          /* <- 기존 -14px에서 크게 */
         height: 1px;
       }
 
 
-      /* ------------------------------------------------------
-         ✅ 커스텀 헤더 텍스트 (st.title / st.header 대체)
-      ------------------------------------------------------ */
+      /* ✅ 커스텀 헤더 텍스트 (st.title / st.header 대체) */
       .h1 {
-        font-size: 2.05rem;
+        font-size: 1.85rem;   /* 기존 2.05rem -> ↓ */
         font-weight: 760;
-        line-height: 1.15;
+        line-height: 1.18;
         color: #111827;
         margin: 0.15rem 0 0.45rem 0;
       }
       .h2 {
-        font-size: 1.50rem;
+        font-size: 1.25rem;   /* 기존 1.50rem -> ↓ */
         font-weight: 740;
-        line-height: 1.2;
+        line-height: 1.25;
         color: #111827;
         margin: 0.10rem 0 0.35rem 0;
       }
+
 
       /* ------------------------------------------------------
        ✅ 헤더 우측 "1 2 3 4" 점프 버튼
@@ -177,6 +176,21 @@ st.markdown(
       .jump-btn.active {
         background: #D1D5DB;      /* gray-300 */
       }
+
+      /* ✅ Streamlit 기본 헤더들(산점도/통계/분석A/B/핵심 권역...) 크기 통일 */
+      div[data-testid="stMarkdownContainer"] h3 {   /* st.subheader는 보통 h3로 렌더 */
+        font-size: 1.25rem !important;
+        font-weight: 740 !important;
+        line-height: 1.25 !important;
+        margin-top: 0.35rem !important;
+        margin-bottom: 0.35rem !important;
+      }
+
+      /* "### 통계" 같이 markdown으로 만든 것도 동일하게 */
+      div[data-testid="stMarkdownContainer"] h3 a {
+        font-size: inherit !important;
+      }
+
 
     </style>
     """,
@@ -253,7 +267,7 @@ def render_scatter_section():
     # 3) 급지 선택 (필터링 X, 하이라이트 O)
     # -------------------------
     with right:
-        st.markdown("### 통계")
+        st.markdown("통계")
         grade_opt = st.radio(
             "급지 강조(1~4급지)",
             ["전체", "1급지", "2급지", "3급지", "4급지"],
@@ -396,7 +410,7 @@ def render_scatter_section():
     col1, col2 = st.columns(2)
 
     with col1:
-        st.subheader("분석 A: 거래량 변동 상/하위 → 가격 상승률")
+        st.subheader("거래량 변동 상/하위 → 가격 상승률")
 
         q_hi = df["trade_count_growth"].quantile(q)
         q_lo = df["trade_count_growth"].quantile(1 - q)
@@ -423,7 +437,7 @@ def render_scatter_section():
             st.write(f"- **p-value:** `{uB.pvalue:.4f}`")
 
     with col2:
-        st.subheader("분석 B: 가격 변동 상/하위 → 거래량 증가율")
+        st.subheader("가격 변동 상/하위 → 거래량 증가율")
 
         p_hi = df["price_growth"].quantile(q)
         p_lo = df["price_growth"].quantile(1 - q)
