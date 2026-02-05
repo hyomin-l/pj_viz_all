@@ -1023,3 +1023,4 @@ st.info(
   **강남 중심 권역과 인접 준고가 지역으로 선택적으로 집중**되는 구조가 반복 강화되고 있다.
     """
 )
+st.markdown("<div style='height:120px;'></div>", unsafe_allow_html=True)
