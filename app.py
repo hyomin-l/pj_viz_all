@@ -88,6 +88,17 @@ st.markdown(
       section.main { margin-left: 0 !important; }
       header[data-testid="stHeader"] { height: 0.5rem; }
 
+      html, body,
+      .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stAppViewContainer"] > .main {
+            background-color: #FBFBFB !important;
+      }
+
+      /* (선택) 상단 헤더/툴바도 배경이 비치게 */
+      header[data-testid="stHeader"] { background: transparent !important; }
+      [data-testid="stToolbar"] { background: transparent !important; }
+
       .block-container {
         max-width: 1100px;
         padding-left: 2.6rem;
@@ -200,7 +211,13 @@ st.markdown(
       div[data-testid="stMarkdownContainer"] h3 a {
         font-size: inherit !important;
       }
+    
+      /* ✅ PART5 설명 텍스트 ↔ 차트 사이 간격 */
+        .part5-chart-gap {
+        height: 25px;   /* 12~32px 사이로 취향대로 조절 */
+      }
 
+      
       /* ✅ PART5 맨 아래 추가 여백(스크롤 여유) */
       .part5-bottom-space {
         height: 260px;   /* 필요하면 200~400px 사이로 조절 */
@@ -445,6 +462,8 @@ def render_scatter_section():
             labels={"group": "구분", "price_growth": "가격 상승률 (2023→2025)"},
             title="(Boxplot) 거래량 변동 그룹별 가격 상승률",
         )
+
+
         st.plotly_chart(figB, width="stretch")
 
         if len(B_high) > 0 and len(B_low) > 0:
@@ -472,6 +491,7 @@ def render_scatter_section():
             labels={"group": "구분", "trade_count_growth": "거래건수 증가율 (2023→2025)"},
             title="(Boxplot) 가격 변동 그룹별 거래량 증가율",
         )
+
         st.plotly_chart(figA, width="stretch")
 
         if len(A_high) > 0 and len(A_low) > 0:
@@ -909,12 +929,19 @@ def render_kde_section():
         unsafe_allow_html=True,
     )
 
+    # ✅ 여기 추가 (텍스트 ↔ 차트 그룹 간격)
+    st.markdown("<div class='part5-chart-gap'></div>", unsafe_allow_html=True)
+
+
     years_cmp = [2019, 2021, 2023, 2025]
 
     fig_wide = make_subplots(
         rows=1, cols=4,
         horizontal_spacing=0.02,
-        subplot_titles=tuple(f"{y}년<br>{_phase_label_for_year(y)}" for y in years_cmp),
+        subplot_titles=tuple(
+            f"<span style='color:#111827'><b>{y}년</b></span><br>{_phase_label_for_year(y)}"
+            for y in years_cmp
+        ),
     )
 
     for a in fig_wide.layout.annotations:

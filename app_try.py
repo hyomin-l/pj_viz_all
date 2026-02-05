@@ -34,10 +34,11 @@ st.set_page_config(layout="wide", page_title="똘똘한 집 한 채")
 # ✅ (추가) Part 앵커 + 헤더 우측 1/2/3/4 점프 버튼 유틸
 # =========================================================
 PART_LABELS = {
-    "part1": "가격 상승률 vs 거래 변화 (통합 시각화)",
+    "part1": "가격 상승률 vs 거래 변화",
     "part2": "가격-거래량 선행 가능성",
     "part3": "고가 거래의 밀도로 본 돈의 무게중심",
-    "part4": "돈의 무게중심은 어떻게 이동했나",
+    "part4": "핵심 권역이 만들어지는 7년의 흐름",
+    "part5": "돈의 무게중심은 어떻게 이동했나",
 }
 
 
@@ -47,7 +48,7 @@ def _jump_buttons_html(active: str | None = None) -> str:
     active: 현재 섹션이면 약간 강조(선택사항)
     """
     items = []
-    for i, pid in enumerate(["part1", "part2", "part3", "part4"], start=1):
+    for i, pid in enumerate(["part1", "part2", "part3", "part4", "part5"], start=1):
         cls = "jump-btn"
         if active == pid:
             cls += " active"
@@ -86,6 +87,17 @@ st.markdown(
       [data-testid="stSidebar"] { display: none; }
       section.main { margin-left: 0 !important; }
       header[data-testid="stHeader"] { height: 0.5rem; }
+
+      html, body,
+      .stApp,
+        [data-testid="stAppViewContainer"],
+        [data-testid="stAppViewContainer"] > .main {
+            background-color: #FBFBFB !important;
+      }
+
+      /* (선택) 상단 헤더/툴바도 배경이 비치게 */
+      header[data-testid="stHeader"] { background: transparent !important; }
+      [data-testid="stToolbar"] { background: transparent !important; }
 
       .block-container {
         max-width: 1100px;
@@ -199,7 +211,18 @@ st.markdown(
       div[data-testid="stMarkdownContainer"] h3 a {
         font-size: inherit !important;
       }
+    
+      /* ✅ PART5 설명 텍스트 ↔ 차트 사이 간격 */
+        .part5-chart-gap {
+        height: 25px;   /* 12~32px 사이로 취향대로 조절 */
+      }
 
+      
+      /* ✅ PART5 맨 아래 추가 여백(스크롤 여유) */
+      .part5-bottom-space {
+        height: 260px;   /* 필요하면 200~400px 사이로 조절 */
+      }
+      
 
     </style>
     """,
@@ -253,7 +276,7 @@ def render_scatter_section():
     # 1) 급지 매핑
     # -------------------------
     GRADE_MAP = {
-        "강남구": 1, "서초구": 1, "송파구": 1, "용산구": 1,
+        "강남구": 1, "서초구": 1, "송파구": 1,
         "성동구": 2, "마포구": 2, "강동구": 2, "광진구": 2,
         "동작구": 3, "서대문구": 3, "영등포구": 3, "동대문구": 3,
         "금천구": 4, "강북구": 4, "도봉구": 4, "노원구": 4,
@@ -381,10 +404,10 @@ def render_scatter_section():
         st.subheader("산점도")
 
         if grade_opt == "전체":
-            color_map = {"전체": "#4C78A8"}
+            color_map = {"전체": "#8EC7E8"}
         else:
             g = int(grade_opt.replace("급지", ""))
-            color_map = {f"{g}급지": "#E45756", "기타": "#4C78A8"}
+            color_map = {f"{g}급지": "#E45756", "기타": "#8EC7E8"}
 
         fig = px.scatter(
             df_plot,
@@ -439,6 +462,19 @@ def render_scatter_section():
             labels={"group": "구분", "price_growth": "가격 상승률 (2023→2025)"},
             title="(Boxplot) 거래량 변동 그룹별 가격 상승률",
         )
+
+        # figB 만든 직후
+        figB.update_layout(
+            title=dict(
+                text="(Boxplot) 거래량 변동 그룹별 가격 상승률",
+                font=dict(size=14, color="#111827", family=None),
+                x=0.0, xanchor="left",
+        ),
+            title_font=dict(size=14, color="#111827"),  # (호환용)
+        )
+        # ✅ weight(굵기) 적용: plotly는 title_font에 weight가 직접 안 먹는 경우가 많아서 HTML로 처리
+        figB.update_layout(title_text="<b>(Boxplot) 거래량 변동 그룹별 가격 상승률</b>")
+        
         st.plotly_chart(figB, width="stretch")
 
         if len(B_high) > 0 and len(B_low) > 0:
@@ -466,6 +502,20 @@ def render_scatter_section():
             labels={"group": "구분", "trade_count_growth": "거래건수 증가율 (2023→2025)"},
             title="(Boxplot) 가격 변동 그룹별 거래량 증가율",
         )
+
+        # figA 만든 직후
+        figA.update_layout(
+            title=dict(
+                text="(Boxplot) 가격 변동 그룹별 거래량 증가율",
+                font=dict(size=14, color="#111827", family=None),
+                x=0.0, xanchor="left",
+            ),
+            title_font=dict(size=14, color="#111827"),
+        )
+        
+        figA.update_layout(title_text="<b>(Boxplot) 가격 변동 그룹별 거래량 증가율</b>")
+
+
         st.plotly_chart(figA, width="stretch")
 
         if len(A_high) > 0 and len(A_low) > 0:
@@ -789,7 +839,7 @@ def render_kde_section():
 
     # (A) 변화: 2019→2025 흐름(Play)
     st.divider()
-    st.subheader("핵심 권역이 만들어지는 7년의 흐름")
+    header_with_jump(PART_LABELS["part4"], "part4", level=2)
 
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
@@ -892,8 +942,8 @@ def render_kde_section():
     # (B) 비교: 1x4
     st.divider()
 
-    # ✅ PART 4
-    header_with_jump(PART_LABELS["part4"], "part4", level=2)
+    # ✅ PART 5
+    header_with_jump(PART_LABELS["part5"], "part5", level=2)
 
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
@@ -903,12 +953,19 @@ def render_kde_section():
         unsafe_allow_html=True,
     )
 
+    # ✅ 여기 추가 (텍스트 ↔ 차트 그룹 간격)
+    st.markdown("<div class='part5-chart-gap'></div>", unsafe_allow_html=True)
+
+
     years_cmp = [2019, 2021, 2023, 2025]
 
     fig_wide = make_subplots(
         rows=1, cols=4,
         horizontal_spacing=0.02,
-        subplot_titles=tuple(f"{y}년<br>{_phase_label_for_year(y)}" for y in years_cmp),
+        subplot_titles=tuple(
+            f"<span style='color:#111827'><b>{y}년</b></span><br>{_phase_label_for_year(y)}"
+            for y in years_cmp
+        ),
     )
 
     for a in fig_wide.layout.annotations:
@@ -961,6 +1018,9 @@ def render_kde_section():
         width="stretch",
         config={"scrollZoom": True, "displayModeBar": "hover"},
     )
+    
+    # ✅ PART5 하단 여백(스크롤 여유) 추가
+    st.markdown("<div class='part5-bottom-space'></div>", unsafe_allow_html=True)
 
 
 # =========================================================
