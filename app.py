@@ -828,7 +828,7 @@ def render_kde_section():
     # (B) 비교: 넓으면 1x4, 좁으면 2x2 (자동 전환)
     # -----------------------------------------------------
     st.divider()
-    st.subheader("돈의 무게중심은 어디로 이동했나")
+    st.subheader("돈의 무게중심은 어떻게 이동했나")
 
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
