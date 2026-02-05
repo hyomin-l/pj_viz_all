@@ -1024,3 +1024,5 @@ st.info(
     """
 )
 st.markdown("<div style='height:120px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:120px;'></div>", unsafe_allow_html=True)
+st.markdown("<div style='height:120px;'></div>", unsafe_allow_html=True)
