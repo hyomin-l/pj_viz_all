@@ -303,7 +303,7 @@ def render_scatter_section():
         grade_opt = st.radio(
             "급지 (1~4급지)",
             ["전체", "1급지", "2급지", "3급지", "4급지"],
-            vertical=True,
+            horizontal=True,
             key="scatter_grade_opt",
         )
 
