@@ -31,8 +31,54 @@ st.set_page_config(layout="wide", page_title="똘똘한 집 한 채")
 
 
 # =========================================================
-# 1) 레이아웃: [코드2] 스타일을 전체 페이지에 적용
-#  - (추가) selectbox/slider 높이/여백을 "무겁지 않게" 약간만 정리
+# ✅ (추가) Part 앵커 + 헤더 우측 1/2/3/4 점프 버튼 유틸
+# =========================================================
+PART_LABELS = {
+    "part1": "가격 상승률 vs 거래 변화 (통합 시각화)",
+    "part2": "가격-거래량 선행 가능성",
+    "part3": "고가 거래의 밀도로 본 돈의 무게중심",
+    "part4": "돈의 무게중심은 어떻게 이동했나",
+}
+
+
+def _jump_buttons_html(active: str | None = None) -> str:
+    """
+    헤더 우측에 보이는 1 2 3 4 버튼.
+    active: 현재 섹션이면 약간 강조(선택사항)
+    """
+    items = []
+    for i, pid in enumerate(["part1", "part2", "part3", "part4"], start=1):
+        cls = "jump-btn"
+        if active == pid:
+            cls += " active"
+        items.append(f"<a class='{cls}' href='#{pid}' title='{PART_LABELS[pid]}'>{i}</a>")
+    return "<div class='jump-wrap'>" + "".join(items) + "</div>"
+
+
+def anchor(pid: str):
+    # 앵커 위치(스크롤 시 살짝 위로 보정)
+    st.markdown(f"<div id='{pid}' class='anchor-pad'></div>", unsafe_allow_html=True)
+
+
+def header_with_jump(title: str, pid: str, level: int = 1):
+    """
+    level=1: 타이틀급(큰 글자)
+    level=2: 섹션 헤더급
+    """
+    anchor(pid)
+
+    left, right = st.columns([4.5, 1.0], vertical_alignment="center")
+    with left:
+        if level == 1:
+            st.markdown(f"<div class='h1'>{title}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div class='h2'>{title}</div>", unsafe_allow_html=True)
+    with right:
+        st.markdown(_jump_buttons_html(active=pid), unsafe_allow_html=True)
+
+
+# =========================================================
+# 1) 레이아웃/CSS
 # =========================================================
 st.markdown(
     """
@@ -61,37 +107,81 @@ st.markdown(
         color: #6B7280; /* gray-500 */
       }
 
-      /* ======================================================
-         ✅ KDE 비교 라디오 전용 스타일 (id wrapper로 범위 제한)
-         - 라디오 라벨(“비교 연도 선택”): 짙은 회색
-         - 라디오 옵션 텍스트: 기본 짙은 회색
-         - 선택된 옵션 텍스트만 검정
-      ====================================================== */
-      #kde-compare-radio div[data-testid="stRadio"] > label {
-        color: #374151 !important; /* gray-700 */
-      }
-
-      /* 옵션 텍스트: 기본값 */
-      #kde-compare-radio input[type="radio"] + div {
-        color: #374151 !important; /* gray-700 */
-      }
-
-      /* 선택된 옵션 텍스트만 검정 */
-      #kde-compare-radio input[type="radio"]:checked + div {
-        color: #111827 !important; /* gray-900 */
-      }
-
       /* KDE 4-panel: always show 1x4 */
-      .kde-wide { display: block !important; 
+      .kde-wide { display: block !important; }
+
+     /* ✅ 앵커 이동 보정: Streamlit 상단바(Deploy bar)에 안 가리도록 충분히 위로 */
+     .anchor-pad { 
+        position: relative; 
+        top: -84px;          /* <- 기존 -14px에서 크게 */
+        height: 1px;
       }
 
-      /*
+
+      /* ------------------------------------------------------
+         ✅ 커스텀 헤더 텍스트 (st.title / st.header 대체)
+      ------------------------------------------------------ */
+      .h1 {
+        font-size: 2.05rem;
+        font-weight: 760;
+        line-height: 1.15;
+        color: #111827;
+        margin: 0.15rem 0 0.45rem 0;
+      }
+      .h2 {
+        font-size: 1.50rem;
+        font-weight: 740;
+        line-height: 1.2;
+        color: #111827;
+        margin: 0.10rem 0 0.35rem 0;
+      }
+
+      /* ------------------------------------------------------
+       ✅ 헤더 우측 "1 2 3 4" 점프 버튼
+      ------------------------------------------------------ */
+      .jump-wrap {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+      }
+
+      .jump-btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 34px;
+        height: 34px;
+        border-radius: 6px;
+        background: #E5E7EB;      /* gray-200 */
+        font-weight: 400;
+        font-size: 0.95rem;
+        user-select: none;
+      }
+
+      /* ✅ 밑줄/색상: 링크 상태 전부 강제 */
+      .jump-btn,
+      .jump-btn:link,
+      .jump-btn:visited,
+      .jump-btn:hover,
+      .jump-btn:active {
+        text-decoration: none !important;
+        color: #111827 !important;
+      }
+
+      /* hover 색 */
+      .jump-btn:hover {
+        background: #D1D5DB;      /* gray-300 */
+      }
+
+      /* ✅ 선택된 버튼(active)도 hover와 동일한 색 */
+      .jump-btn.active {
+        background: #D1D5DB;      /* gray-300 */
+      }
 
     </style>
     """,
     unsafe_allow_html=True,
 )
-
 
 st.markdown("<div style='height: 0.5rem;'></div>", unsafe_allow_html=True)
 
@@ -121,7 +211,8 @@ set_korean_font_for_cloud()
 # 3) [코드1] 렌더 함수: 가격 상승률 vs 거래 변화 산점도 + 추가분석
 # =========================================================
 def render_scatter_section():
-    st.title("가격 상승률 vs 거래 변화 (통합 시각화)")
+    # ✅ PART 1
+    header_with_jump(PART_LABELS["part1"], "part1", level=1)
 
     # -------------------------
     # 0) 데이터 로드
@@ -294,7 +385,10 @@ def render_scatter_section():
     # 6) 추가분석: A/B + q 슬라이더
     # -------------------------
     st.divider()
-    st.header("추가분석: 가격 ↔ 거래량 선행 가능성(분석 A/B)")
+
+    # ✅ PART 2 (원래 st.header 자리)
+    header_with_jump(PART_LABELS["part2"], "part2", level=2)
+
     st.caption("‘지표 변동이 큰 구 vs 작은 구’로 나눠서 다른 지표의 분포를 비교")
 
     q = st.slider("상/하위 그룹 분리 분위수 q (상위 q, 하위 1-q)", 0.60, 0.90, 0.70, 0.01, key="scatter_q")
@@ -357,12 +451,7 @@ def render_scatter_section():
 
 
 # =========================================================
-# 4) [코드2] (KDE) 섹션: 폴더 구조/파일명 반영
-#   ✅ 발표/시연용 UI/UX 반영 버전
-#   - "옵션" 제거 (하나의 강한 관점 고정)
-#   - 비교: (과거 연도) vs (2025 고정)
-#   - 변화: Play/연도/속도 + "해석 가이드" + 연도별 상태 문장
-#   - 컬러바: 숫자 중심 → 해석 중심(고가 거래 밀도)
+# 4) [코드2] (KDE) 섹션
 # =========================================================
 CSV_PATH_DEFAULT = "아파트실거래가2015_2025.csv"
 GEOJSON_URL_DEFAULT = (
@@ -370,12 +459,9 @@ GEOJSON_URL_DEFAULT = (
     "hangjeongdong_%EC%84%9C%EC%9A%B8%ED%8A%B9%EB%B3%84%EC%8B%9C.geojson"
 )
 
-# ✅ 발표용 고정 설정(옵션 제거)
-# - 상위 10% 거래
-# - 값 컬럼: (평당 거래가격) 권장
-KDE_MODE_FIXED = "top_pct"                  # "raw" 또는 "top_pct" 중 발표용은 top_pct 고정
-KDE_VALUE_LABEL_FIXED = "평당 거래가격"      # 라벨용(캡션)
-KDE_VALUE_COL_FIXED = "price_per_pyeong_manwon"  # 실제 계산 컬럼
+KDE_MODE_FIXED = "top_pct"
+KDE_VALUE_LABEL_FIXED = "평당 거래가격"
+KDE_VALUE_COL_FIXED = "price_per_pyeong_manwon"
 
 DEFAULT_CAP = 9000
 DEFAULT_BW = 0.22
@@ -410,8 +496,8 @@ def load_tx_csv(path_tx: str) -> pd.DataFrame:
 
     tx["price_manwon"] = (
         tx["dealAmount"].astype(str)
-          .str.replace(",", "", regex=False)
-          .str.replace(r"[^0-9.]", "", regex=True)
+        .str.replace(",", "", regex=False)
+        .str.replace(r"[^0-9.]", "", regex=True)
     )
     tx["price_manwon"] = pd.to_numeric(tx["price_manwon"], errors="coerce")
 
@@ -536,9 +622,6 @@ def compute_Z_all_years_cached(tx_df: pd.DataFrame, geojson_url: str, years: lis
     return Z_by_year, vmax, b3857, extent
 
 
-# =========================
-# Plotly 렌더 유틸: 경계선 + 라벨(halo 제거)
-# =========================
 def make_boundary_traces(b3857: gpd.GeoDataFrame):
     xs, ys = [], []
     for geom in b3857.geometry:
@@ -555,11 +638,10 @@ def make_boundary_traces(b3857: gpd.GeoDataFrame):
             xs += list(x) + [None]
             ys += list(y) + [None]
 
-    # ✅ 발표용: 선을 조금 더 “지도처럼” 보이게(너무 얇으면 heat에 묻힘)
     return go.Scatter(
         x=xs, y=ys,
         mode="lines",
-        line=dict(width=1.2, color="#CBD5E1"),  # slate-300
+        line=dict(width=1.2, color="#CBD5E1"),
         opacity=0.85,
         hoverinfo="skip",
         showlegend=False,
@@ -567,12 +649,10 @@ def make_boundary_traces(b3857: gpd.GeoDataFrame):
 
 
 def _label_colors_for_year(b: gpd.GeoDataFrame, year: int | None):
-    # ✅ heat 위 라벨 가독성(발표용) : 핵심권역은 검정, 나머지는 흰색
     black_set = {"용산구", "강남구", "서초구", "송파구"}
     colors = []
     for gu in b["gu"].tolist():
         c = "black" if gu in black_set else "white"
-        # 2019 강남구는 배경에 따라 흰색이 더 안전했던 케이스 유지
         if year is not None and int(year) == 2019 and gu == "강남구":
             c = "white"
         colors.append(c)
@@ -610,7 +690,6 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
     x = np.linspace(xmin, xmax, nx)
     y = np.linspace(ymin, ymax, ny)
 
-    # ✅ 발표용 컬러바: 숫자보다 “의미”를 먼저 보이게
     cb = dict(
         thickness=16,
         len=0.55,
@@ -634,22 +713,10 @@ def heatmap_trace(Z, extent, vmax, colorscale, show_scale, colorbar_x=1.02):
 
 
 def _condition_caption():
-    # ✅ 발표용: 방법을 짧고 자연스럽게 설명
-    return f"각 연도별로 평당 거래가격 상위 10% 거래를 선택해, 구별 평당가격 합을 가중치로 해 점을 생성한 뒤 KDE로 공간 밀도를 추정했습니다."
-
-
-def _compare_narrative_for_year(y: int) -> str:
-    # ✅ 비교 파트(연도 vs 2025) 설명 문구
-    msg = {
-        2019: "2019년엔 ‘점’처럼 모였던 자본이, 2025년엔 ‘권역’으로 연결됩니다.",
-        2021: "2021년의 확산은 ‘분산’이 아니라, 권역이 만들어지는 전조였습니다.",
-        2023: "2023년 저점 이후, 자본은 서울 전반이 아니라 핵심 권역으로 직행합니다.",
-    }
-    return msg.get(int(y), "과거의 돈이 2025년에 어떻게 ‘권역’으로 굳어졌는지 비교합니다.")
+    return "각 연도별로 평당 거래가격 상위 10% 거래를 선택해, 구별 평당가격 합을 가중치로 해 점을 생성한 뒤 KDE로 공간 밀도를 추정했습니다."
 
 
 def _phase_label_for_year(y: int) -> str:
-    # ✅ 변화 파트(연속 재생) 상태 문장
     phase = {
         2019: "집중의 시작 (Point)",
         2020: "확장 전개 (Widening)",
@@ -662,17 +729,14 @@ def _phase_label_for_year(y: int) -> str:
     return phase.get(int(y), "")
 
 
-# =========================================================
-# 5) KDE 섹션 (발표/시연용)
-# =========================================================
 def render_kde_section():
-    st.header("고가 거래의 밀도로 본 돈의 무게중심")
+    # ✅ PART 3
+    header_with_jump(PART_LABELS["part3"], "part3", level=1)
     st.caption(_condition_caption())
 
     path_tx = CSV_PATH_DEFAULT
     geojson_url = GEOJSON_URL_DEFAULT
 
-    # 데이터 로드 + KDE 계산
     try:
         tx = load_tx_csv(path_tx)
     except Exception as e:
@@ -700,13 +764,10 @@ def render_kde_section():
 
     xmin, xmax, ymin, ymax = extent
 
-    # -----------------------------------------------------
     # (A) 변화: 2019→2025 흐름(Play)
-    # -----------------------------------------------------
     st.divider()
     st.subheader("핵심 권역이 만들어지는 7년의 흐름")
 
-    # ✅ caption 대신 검은색 텍스트로
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
         "▶︎ 버튼을 누르면, 시간의 흐름에 따라 고가 거래 밀도가 변화하는 모습을 볼 수 있습니다."
@@ -714,14 +775,12 @@ def render_kde_section():
         unsafe_allow_html=True,
     )
 
-    # ---- state init
     if "kde_playing" not in st.session_state:
         st.session_state.kde_playing = False
     if "kde_year_cur" not in st.session_state:
         st.session_state.kde_year_cur = 2019
     if "kde_speed" not in st.session_state:
         st.session_state.kde_speed = 0.5
-
 
     ctrl1, ctrl2, ctrl3 = st.columns([1.0, 2.2, 2.2], vertical_alignment="center")
 
@@ -749,8 +808,6 @@ def render_kde_section():
 
     with ctrl3:
         SPEED_OPTIONS = [0.05, 0.5, 1.0, 2.0]
-
-        # ✅ 세션에 이상한 값(예: 0.25, 2.5)이 들어있으면 가장 가까운 옵션으로 스냅
         cur = float(st.session_state.get("kde_speed", 0.5))
         nearest = min(SPEED_OPTIONS, key=lambda v: abs(v - cur))
 
@@ -760,14 +817,10 @@ def render_kde_section():
             value=nearest,
             key="kde_speed_streamlit",
         )
-
         st.session_state.kde_speed = float(speed_sec)
-  
 
     st.markdown("<div style='height: 0.25rem;'></div>", unsafe_allow_html=True)
 
-
-    # ✅ 연도 상태 문장 (차트 위)
     cur_year = int(st.session_state.kde_year_cur)
     phase_text = _phase_label_for_year(cur_year)
     if phase_text:
@@ -796,39 +849,28 @@ def render_kde_section():
         fig.update_xaxes(range=[xmin, xmax], visible=False, showgrid=False, zeroline=False)
         fig.update_yaxes(range=[ymin, ymax], visible=False, showgrid=False, zeroline=False, scaleanchor="x", scaleratio=1)
 
-        fig.update_layout(
-            height=420,
-            margin=dict(l=6, r=6, t=8, b=6),
-        )
+        fig.update_layout(height=420, margin=dict(l=6, r=6, t=8, b=6))
         return fig
 
     chart_slot.plotly_chart(
         make_single_year_fig(cur_year),
         width="stretch",
-        config={
-            "scrollZoom": True,
-            "displayModeBar": "hover",
-        },
+        config={"scrollZoom": True, "displayModeBar": "hover"},
     )
 
-    # ---- play loop
     if st.session_state.kde_playing:
         time.sleep(float(st.session_state.kde_speed))
-
         if cur_year < 2025:
             st.session_state.kde_year_cur = cur_year + 1
         else:
             st.session_state.kde_playing = False
-
         st.rerun()
 
-
-
-    # -----------------------------------------------------
-    # (B) 비교: 넓으면 1x4, 좁으면 2x2 (자동 전환)
-    # -----------------------------------------------------
+    # (B) 비교: 1x4
     st.divider()
-    st.subheader("돈의 무게중심은 어떻게 이동했나")
+
+    # ✅ PART 4
+    header_with_jump(PART_LABELS["part4"], "part4", level=2)
 
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
@@ -840,13 +882,10 @@ def render_kde_section():
 
     years_cmp = [2019, 2021, 2023, 2025]
 
-    # ---------- 1x4 (wide) ----------
     fig_wide = make_subplots(
         rows=1, cols=4,
         horizontal_spacing=0.02,
-        subplot_titles=tuple(
-            f"{y}년<br>{_phase_label_for_year(y)}" for y in years_cmp
-        ),
+        subplot_titles=tuple(f"{y}년<br>{_phase_label_for_year(y)}" for y in years_cmp),
     )
 
     for a in fig_wide.layout.annotations:
@@ -888,24 +927,17 @@ def render_kde_section():
             row=1, col=i
         )
 
-    # 줌 연동(1x4)
     for i in [2, 3, 4]:
         fig_wide.update_xaxes(matches="x", row=1, col=i)
         fig_wide.update_yaxes(matches="y", row=1, col=i)
 
-    fig_wide.update_layout(
-        height=380,
-        margin=dict(l=6, r=6, t=48, b=6),
-    )
+    fig_wide.update_layout(height=380, margin=dict(l=6, r=6, t=48, b=6))
 
-    # ---------- (3) 1x4만 렌더 ----------
     st.plotly_chart(
         fig_wide,
         width="stretch",
         config={"scrollZoom": True, "displayModeBar": "hover"},
     )
-
-
 
 
 # =========================================================
