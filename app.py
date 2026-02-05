@@ -37,7 +37,8 @@ PART_LABELS = {
     "part1": "가격 상승률 vs 거래 변화 (통합 시각화)",
     "part2": "가격-거래량 선행 가능성",
     "part3": "고가 거래의 밀도로 본 돈의 무게중심",
-    "part4": "돈의 무게중심은 어떻게 이동했나",
+    "part4": "핵심 권역이 만들어지는 7년의 흐름",
+    "part5": "돈의 무게중심은 어떻게 이동했나",
 }
 
 
@@ -47,7 +48,7 @@ def _jump_buttons_html(active: str | None = None) -> str:
     active: 현재 섹션이면 약간 강조(선택사항)
     """
     items = []
-    for i, pid in enumerate(["part1", "part2", "part3", "part4"], start=1):
+    for i, pid in enumerate(["part1", "part2", "part3", "part4", "part5"], start=1):
         cls = "jump-btn"
         if active == pid:
             cls += " active"
@@ -127,12 +128,21 @@ st.markdown(
         margin: 0.15rem 0 0.45rem 0;
       }
       .h2 {
-        font-size: 1.25rem;   /* 기존 1.50rem -> ↓ */
+        font-size: 1.35rem;   /* 기존 1.50rem -> ↓ */
         font-weight: 740;
         line-height: 1.25;
         color: #111827;
         margin: 0.10rem 0 0.35rem 0;
       }
+
+      /* ✅ Streamlit subheader(h3)도 같은 크기로 */
+      div[data-testid="stMarkdownContainer"] h3 {
+        font-size: 1.35rem !important;  /* ✅ 통일 */
+        font-weight: 740 !important;
+        line-height: 1.25 !important;
+        margin-top: 0.35rem !important;
+        margin-bottom: 0.35rem !important;
+     }
 
 
       /* ------------------------------------------------------
@@ -191,6 +201,11 @@ st.markdown(
         font-size: inherit !important;
       }
 
+      /* ✅ PART5 맨 아래 추가 여백(스크롤 여유) */
+      .part5-bottom-space {
+        height: 260px;   /* 필요하면 200~400px 사이로 조절 */
+      }
+      
 
     </style>
     """,
@@ -267,7 +282,7 @@ def render_scatter_section():
     # 3) 급지 선택 (필터링 X, 하이라이트 O)
     # -------------------------
     with right:
-        st.markdown("통계")
+        st.subheader("통계")
         grade_opt = st.radio(
             "급지 강조(1~4급지)",
             ["전체", "1급지", "2급지", "3급지", "4급지"],
@@ -780,7 +795,7 @@ def render_kde_section():
 
     # (A) 변화: 2019→2025 흐름(Play)
     st.divider()
-    st.subheader("핵심 권역이 만들어지는 7년의 흐름")
+    header_with_jump(PART_LABELS["part4"], "part4", level=2)
 
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
@@ -883,8 +898,8 @@ def render_kde_section():
     # (B) 비교: 1x4
     st.divider()
 
-    # ✅ PART 4
-    header_with_jump(PART_LABELS["part4"], "part4", level=2)
+    # ✅ PART 5
+    header_with_jump(PART_LABELS["part5"], "part5", level=2)
 
     st.markdown(
         "<div style='color:#111827; font-size:0.875rem; margin-top:0.15rem;'>"
@@ -952,6 +967,9 @@ def render_kde_section():
         width="stretch",
         config={"scrollZoom": True, "displayModeBar": "hover"},
     )
+    
+    # ✅ PART5 하단 여백(스크롤 여유) 추가
+    st.markdown("<div class='part5-bottom-space'></div>", unsafe_allow_html=True)
 
 
 # =========================================================

@@ -127,12 +127,21 @@ st.markdown(
         margin: 0.15rem 0 0.45rem 0;
       }
       .h2 {
-        font-size: 1.25rem;   /* 기존 1.50rem -> ↓ */
+        font-size: 1.35rem;   /* 기존 1.50rem -> ↓ */
         font-weight: 740;
         line-height: 1.25;
         color: #111827;
         margin: 0.10rem 0 0.35rem 0;
       }
+
+      /* ✅ Streamlit subheader(h3)도 같은 크기로 */
+      div[data-testid="stMarkdownContainer"] h3 {
+        font-size: 1.35rem !important;  /* ✅ 통일 */
+        font-weight: 740 !important;
+        line-height: 1.25 !important;
+        margin-top: 0.35rem !important;
+        margin-bottom: 0.35rem !important;
+     }
 
 
       /* ------------------------------------------------------
@@ -267,7 +276,7 @@ def render_scatter_section():
     # 3) 급지 선택 (필터링 X, 하이라이트 O)
     # -------------------------
     with right:
-        st.markdown("통계")
+        st.subheader("통계")
         grade_opt = st.radio(
             "급지 강조(1~4급지)",
             ["전체", "1급지", "2급지", "3급지", "4급지"],
