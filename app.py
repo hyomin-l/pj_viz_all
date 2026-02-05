@@ -301,9 +301,9 @@ def render_scatter_section():
     with right:
         st.subheader("통계")
         grade_opt = st.radio(
-            "급지 강조(1~4급지)",
+            "급지 (1~4급지)",
             ["전체", "1급지", "2급지", "3급지", "4급지"],
-            horizontal=True,
+            vertical=True,
             key="scatter_grade_opt",
         )
 
