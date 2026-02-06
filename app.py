@@ -465,9 +465,9 @@ def render_scatter_section():
 
         st.plotly_chart(figB, width="stretch")
 
-        if len(B_high) > 0 and len(B_low) > 0:
-            uB = mannwhitneyu(B_high["price_growth"], B_low["price_growth"], alternative="two-sided")
-            st.write(f"- **p-value:** `{uB.pvalue:.4f}`")
+        # if len(B_high) > 0 and len(B_low) > 0:
+        #     uB = mannwhitneyu(B_high["price_growth"], B_low["price_growth"], alternative="two-sided")
+        #     st.write(f"- **p-value:** `{uB.pvalue:.4f}`")
 
     with col2:
         st.subheader("가격 변동 상/하위 → 거래량 증가율")
@@ -493,9 +493,9 @@ def render_scatter_section():
 
         st.plotly_chart(figA, width="stretch")
 
-        if len(A_high) > 0 and len(A_low) > 0:
-            uA = mannwhitneyu(A_high["trade_count_growth"], A_low["trade_count_growth"], alternative="two-sided")
-            st.write(f"- **p-value:** `{uA.pvalue:.4f}`")
+        # if len(A_high) > 0 and len(A_low) > 0:
+        #     uA = mannwhitneyu(A_high["trade_count_growth"], A_low["trade_count_growth"], alternative="two-sided")
+        #     st.write(f"- **p-value:** `{uA.pvalue:.4f}`")
 
 
 # =========================================================
