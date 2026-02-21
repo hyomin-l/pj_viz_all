@@ -350,15 +350,15 @@ def render_scatter_section():
     else:
         r = beta = r2 = p_beta = np.nan
 
-#     with right:
-#         st.markdown(
-#             f"""
-# - **상관계수 r:** `{r:.3f}`  
-# - **회귀 기울기 β:** `{beta:.4f}`  
-# - **R²:** `{r2:.3f}`  
-# - **p-value (β):** `{p_beta:.4f}`
-#             """
-#         )
+    with right:
+        st.markdown(
+            f"""
+- **상관계수 r:** `{r:.3f}`  
+- **회귀 기울기 β:** `{beta:.4f}`  
+- **R²:** `{r2:.3f}`  
+- **p-value (β):** `{p_beta:.4f}`
+            """
+        )
 
     # Hover(툴팁)
     if mode == "절대지표(거래건수)":
